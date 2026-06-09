@@ -32,7 +32,7 @@ Gemini text, Imagen, Speech-to-Text, embeddings, translation, and more — see t
    ```
 
 Output lands in `out/` (gitignored). Image gen needs `GOOGLE_CLOUD_LOCATION=global`;
-Veo needs a region (`us-central1`) plus a `VERTEX_OUTPUT_GCS_URI` bucket;
+Veo needs a region (`us-central1`) and returns the MP4 inline — no bucket;
 voiceover needs `texttospeech.googleapis.com` enabled and only
 `GOOGLE_CLOUD_PROJECT` set.
 

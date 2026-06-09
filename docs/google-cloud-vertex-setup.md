@@ -157,14 +157,12 @@ export GOOGLE_GENAI_USE_VERTEXAI=True
 ```
 
 - **nano-banana (image):** `global` is fine.
-- **Veo 3 (video):** use a regional location such as `us-central1`, and provide
-  a **GCS bucket** for the output:
+- **Veo 3 (video):** use a regional location such as `us-central1`:
   ```bash
   export GOOGLE_CLOUD_LOCATION=us-central1
-  export VERTEX_OUTPUT_GCS_URI=gs://your-bucket/veo
-  # one-time: create the bucket
-  gcloud storage buckets create gs://your-bucket --location=us-central1
   ```
+  The rendered MP4 comes back inline and the example saves it to
+  `examples/vertex/out/` — no GCS bucket needed.
 
 ---
 
@@ -176,7 +174,7 @@ python3 -m pip install -r examples/vertex/requirements.txt
 # image (nano-banana)
 python3 examples/vertex/generate_image_nano_banana.py "a watercolor fox reading a book"
 
-# video (Veo 3) — needs GOOGLE_CLOUD_LOCATION=us-central1 + VERTEX_OUTPUT_GCS_URI
+# video (Veo 3) — needs a regional GOOGLE_CLOUD_LOCATION (e.g. us-central1)
 python3 examples/vertex/generate_video_veo.py "a timelapse of a city at dusk"
 
 # voiceover (Text-to-Speech) — needs texttospeech.googleapis.com enabled (Step 4)
@@ -235,7 +233,7 @@ works as a fallback.
 | `PermissionDenied` / `aiplatform.googleapis.com ... not enabled` | Re-run Step 4; wait a minute; confirm the right project with `gcloud config get-value project`. |
 | `Reauthentication required` / `invalid_grant` | Re-run `gcloud auth application-default login`. |
 | `403 ... billing` | Attach a billing account to the project in the console. |
-| Veo: `output_gcs_uri` error or empty result | Veo writes to GCS. Set `VERTEX_OUTPUT_GCS_URI` and use a regional `GOOGLE_CLOUD_LOCATION` (e.g. `us-central1`). |
+| Veo: location error or empty result | Veo needs a regional `GOOGLE_CLOUD_LOCATION` (e.g. `us-central1`), not `global`. The video returns inline — no bucket required. |
 | Voiceover: `texttospeech ... not enabled` / `403` | Enable it: `gcloud services enable texttospeech.googleapis.com`. |
 | Voiceover: `SERVICE_DISABLED` for `x-goog-user-project` | The project in the header must match a real, billing-enabled project you own. |
 | Model `not found` / `404` | Model IDs evolve. Check current IDs in [Model Garden](https://console.cloud.google.com/vertex-ai/model-garden); newer variants (e.g. `veo-3.1-generate-001`, Gemini 3 image) may be available. |
