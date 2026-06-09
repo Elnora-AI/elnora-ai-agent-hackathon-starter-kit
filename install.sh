@@ -1,9 +1,9 @@
 #!/bin/bash
 # ============================================================
-# Elnora Starter Kit - One-liner Installer (macOS)
+# Elnora AI Agent Hackathon Starter Kit - One-liner Installer (macOS)
 # ============================================================
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash
 #
 # Prompts for a workspace name (used for BOTH the local folder name AND
 # the GitHub repo name created in Phase 2), downloads the starter kit
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 REPO_OWNER="Elnora-AI"
-REPO_NAME="elnora-starter-kit"
+REPO_NAME="elnora-ai-agent-hackathon-starter-kit"
 BRANCH="main"
 
 # ---- Workspace name -------------------------------------------------------
@@ -28,7 +28,7 @@ BRANCH="main"
 #   2. Interactive prompt on /dev/tty (curl|bash leaves stdin closed,
 #      so we read the user's tty directly, same pattern setup-mac.sh
 #      uses for git config prompts).
-#   3. Fallback to "elnora-starter-kit" so non-interactive contexts
+#   3. Fallback to "elnora-ai-agent-hackathon-starter-kit" so non-interactive contexts
 #      with no env var (older test rigs, headless runners) still work.
 #
 # Validation enforces the project naming convention (see CLAUDE.md
@@ -59,7 +59,7 @@ _user_lower="$(printf '%s' "${USER:-me}" \
 default_name="${_user_lower}-agents"
 
 echo "==========================================="
-echo "  Elnora Starter Kit - Bootstrap"
+echo "  Elnora AI Agent Hackathon Starter Kit - Bootstrap"
 echo "==========================================="
 echo ""
 
@@ -87,7 +87,7 @@ elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
     done
     echo ""
 else
-    WORKSPACE_NAME="elnora-starter-kit"
+    WORKSPACE_NAME="elnora-ai-agent-hackathon-starter-kit"
 fi
 
 if ! [[ "$WORKSPACE_NAME" =~ $NAME_RE ]]; then
@@ -218,17 +218,17 @@ cd "$TARGET_DIR"
 # with whatever INSTALL_FOR_AGENTS.md content the customer is about to run.
 if [ -f "$TARGET_DIR/INSTALL_FOR_AGENTS.md" ]; then
     install_for_agents_sha=$(shasum -a 256 "$TARGET_DIR/INSTALL_FOR_AGENTS.md" | awk '{print $1}')
-    cat > "$TARGET_DIR/.elnora-starter-kit-marker" <<EOF
+    cat > "$TARGET_DIR/.elnora-ai-agent-hackathon-starter-kit-marker" <<EOF
 version: 1
 created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 install_for_agents_sha256: $install_for_agents_sha
 EOF
-    echo "  Wrote integrity marker (.elnora-starter-kit-marker)."
+    echo "  Wrote integrity marker (.elnora-ai-agent-hackathon-starter-kit-marker)."
 fi
 
 # Strip dev/CI scaffolding the customer can't use anyway. tests/handoff/ exists
 # for our CI assertions; .github/ holds workflows + dependabot config that only
-# fire on the official Elnora-AI/elnora-starter-kit repo. Both ride along in the
+# fire on the official Elnora-AI/elnora-ai-agent-hackathon-starter-kit repo. Both ride along in the
 # tarball and would just clutter the customer's directory. rm -rf is idempotent
 # so this is safe on both fresh and re-run installs.
 echo "Stripping dev/CI scaffolding (tests/, .github/)..."

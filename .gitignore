@@ -64,7 +64,7 @@ azure-*.json
 # fresh extract; setup-mac.sh / setup-windows.ps1 verify the SHA against
 # INSTALL_FOR_AGENTS.md before handing off to claude. It's scaffolding,
 # not user content — keep it out of customers' initial commit.
-.elnora-starter-kit-marker
+.elnora-ai-agent-hackathon-starter-kit-marker
 
 # Phase 2 collision-recovery resume marker. INSTALL_FOR_AGENTS.md step
 # 6c.2 writes this when a GitHub repo-name collision forces a folder

@@ -122,7 +122,7 @@ jobs:
       - name: Pre-set git config (skip Read prompt)
         run: |
           git config --global user.name "Handoff E2E"
-          git config --global user.email "handoff-e2e@elnora-starter-kit.test"
+          git config --global user.email "handoff-e2e@elnora-ai-agent-hackathon-starter-kit.test"
 
       - name: Stage fake Obsidian vault for KB auto-detect
         run: |
@@ -175,7 +175,7 @@ jobs:
           echo "  [OK] basename($STAGED) == \$ELNORA_HANDOFF_REPO_NAME ($actual)"
 
       - name: Write integrity marker (mirror install.sh)
-        # install.sh writes .elnora-starter-kit-marker on fresh extract; the
+        # install.sh writes .elnora-ai-agent-hackathon-starter-kit-marker on fresh extract; the
         # setup script's headless mode now hard-refuses if the marker is
         # missing. We bypass install.sh in this workflow (rsync from the
         # workspace), so we have to mint the marker ourselves to match the
@@ -187,8 +187,8 @@ jobs:
             echo "version: 1"
             echo "created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "install_for_agents_sha256: $sha"
-          } > "$STAGED/.elnora-starter-kit-marker"
-          echo "  Wrote $STAGED/.elnora-starter-kit-marker (sha256=$sha)"
+          } > "$STAGED/.elnora-ai-agent-hackathon-starter-kit-marker"
+          echo "  Wrote $STAGED/.elnora-ai-agent-hackathon-starter-kit-marker (sha256=$sha)"
 
       - name: Pre-stage .claude/knowledge-base.local.md (no agent writes to .claude/)
         # The agent in headless mode is NOT allowed to write under .claude/
@@ -412,7 +412,7 @@ jobs:
         shell: pwsh
         run: |
           git config --global user.name "Handoff E2E"
-          git config --global user.email "handoff-e2e@elnora-starter-kit.test"
+          git config --global user.email "handoff-e2e@elnora-ai-agent-hackathon-starter-kit.test"
 
       - name: Stage fake Obsidian vault for KB auto-detect
         shell: pwsh
@@ -470,7 +470,7 @@ jobs:
           Write-Host "  [OK] basename($staged) == `$ELNORA_HANDOFF_REPO_NAME ($actual)"
 
       - name: Write integrity marker (mirror install.ps1)
-        # install.ps1 writes .elnora-starter-kit-marker on fresh extract; the
+        # install.ps1 writes .elnora-ai-agent-hackathon-starter-kit-marker on fresh extract; the
         # setup script's headless mode now hard-refuses if the marker is
         # missing. We bypass install.ps1 in this workflow (robocopy from the
         # workspace), so we have to mint the marker ourselves to match the
@@ -481,7 +481,7 @@ jobs:
           $docPath = Join-Path $staged "INSTALL_FOR_AGENTS.md"
           $hash = (Get-FileHash -Path $docPath -Algorithm SHA256).Hash.ToLowerInvariant()
           $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          $markerPath = Join-Path $staged ".elnora-starter-kit-marker"
+          $markerPath = Join-Path $staged ".elnora-ai-agent-hackathon-starter-kit-marker"
           $content = "version: 1`ncreated: $now`ninstall_for_agents_sha256: $hash`n"
           [System.IO.File]::WriteAllText($markerPath, $content, [System.Text.UTF8Encoding]::new($false))
           Write-Host "  Wrote $markerPath (sha256=$hash)"

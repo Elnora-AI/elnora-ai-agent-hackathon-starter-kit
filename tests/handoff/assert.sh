@@ -169,7 +169,7 @@ fi
 # end-state for the user is a clean repo containing only what they need.
 echo ""
 echo "[step 11 cleanup]"
-cleanup_files="install.sh install.ps1 setup-mac.sh setup-windows.ps1 INSTALL_FOR_AGENTS.md RECOVERY.md .elnora-starter-kit-marker"
+cleanup_files="install.sh install.ps1 setup-mac.sh setup-windows.ps1 INSTALL_FOR_AGENTS.md RECOVERY.md .elnora-ai-agent-hackathon-starter-kit-marker"
 cleanup_ok=1
 for f in $cleanup_files; do
     if [ -e "$f" ]; then

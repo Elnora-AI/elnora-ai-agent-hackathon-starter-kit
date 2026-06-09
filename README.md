@@ -1,14 +1,18 @@
-# Elnora Starter Kit
+# Elnora AI Agent Hackathon Starter Kit
 
 One-command setup that installs and wires together [Elnora AI](https://elnora.ai),
 Claude Code, and the supporting dev tools (Python, Node.js, Git, GitHub CLI,
-VS Code, Obsidian) needed to use them productively from the terminal.
+VS Code, Obsidian) you need to build AI agents from the terminal.
+
+Built for the **Elnora & EFS AI hackathon workshop**: run one command and you're
+at a working agent environment in 15–25 minutes, no setup rabbit holes — so you
+spend the workshop building your agent, not fighting installers.
 
 ## Who this is for
 
-**Elnora customers** who want the fastest path from "I have an account" to
-generating protocols and automating lab work from the command line, without
-chasing installers or learning what `brew` is on day one.
+**Hackathon participants** who want the fastest path from a fresh laptop to a
+working Claude Code + Elnora AI environment, without chasing installers or
+learning what `brew` is on day one.
 
 Also a useful starting point for anyone bootstrapping a Claude Code project,
 validating an existing setup, or using this as a template to build their own
@@ -26,13 +30,13 @@ agents and plugins. The Elnora pieces are optional.
 **macOS:** open Terminal (`Cmd+Space`, type `Terminal`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash
 ```
 
 **Windows:** open **PowerShell** (Start key, type `PowerShell`). Not Command Prompt or cmd.
 
 ```powershell
-irm https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex
 ```
 
 Runtime is 15–25 minutes on a fresh machine, faster on re-runs.

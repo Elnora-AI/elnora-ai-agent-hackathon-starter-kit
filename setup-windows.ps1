@@ -1315,7 +1315,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                 "^[Ss]" {
                     # Use the live working directory for the resume hint -- the
                     # user picked their workspace name in install.ps1, so the
-                    # folder is no longer guaranteed to be Documents\elnora-starter-kit.
+                    # folder is no longer guaranteed to be Documents\elnora-ai-agent-hackathon-starter-kit.
                     $kitDirDisplay = (Get-Location).Path
                     # OrdinalIgnoreCase: Windows paths are case-insensitive
                     # but PowerShell's String.StartsWith defaults to ordinal
@@ -1565,7 +1565,7 @@ if (($env:ELNORA_SKIP_HANDOFF -eq "1") -or ($env:ELNORA_HANDOFF_MODE -eq "headle
 # The exact prompt handed to Claude. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
 # divergence here is the bug headless mode is supposed to catch.
-$HandoffPrompt = "Phase 1 of the Elnora Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log."
+$HandoffPrompt = "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log."
 
 $claudeAvailable = Get-Command claude -ErrorAction SilentlyContinue
 if ($claudeAvailable) {
@@ -1581,7 +1581,7 @@ if ($claudeAvailable) {
 
     # Verify INSTALL_FOR_AGENTS.md hasn't been tampered with since
     # install.ps1 extracted the zip. install.ps1 records the sha256 in
-    # .elnora-starter-kit-marker on fresh extract. If the file changed
+    # .elnora-ai-agent-hackathon-starter-kit-marker on fresh extract. If the file changed
     # post-extract, abort - the agent shouldn't be handed off to a doc we
     # didn't ship, especially when headless mode runs with bypassPermissions.
     #
@@ -1593,7 +1593,7 @@ if ($claudeAvailable) {
     #      interactive handoff; refuse for headless mode where claude
     #      would run with bypassPermissions (see headless branch below).
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $markerFile = Join-Path $scriptDir ".elnora-starter-kit-marker"
+    $markerFile = Join-Path $scriptDir ".elnora-ai-agent-hackathon-starter-kit-marker"
     $docFile = Join-Path $scriptDir "INSTALL_FOR_AGENTS.md"
     $markerMissing = $false
     if (Test-Path -LiteralPath $docFile) {
@@ -1615,7 +1615,7 @@ if ($claudeAvailable) {
                 Write-Host "    Refusing to hand off to claude. If you intentionally edited the doc," -ForegroundColor Red
                 Write-Host "    delete $markerFile and re-run, or re-run the bootstrap one-liner for" -ForegroundColor Red
                 Write-Host "    a clean copy:" -ForegroundColor Red
-                Write-Host "      irm https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex" -ForegroundColor Red
+                Write-Host "      irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex" -ForegroundColor Red
                 exit 3
             }
         } else {
@@ -1644,7 +1644,7 @@ if ($claudeAvailable) {
         # human is on the other end approving each tool call; headless
         # mode is not allowed that latitude.
         if ($markerMissing) {
-            Write-Host "[!] ELNORA_HANDOFF_MODE=headless requires .elnora-starter-kit-marker," -ForegroundColor Red
+            Write-Host "[!] ELNORA_HANDOFF_MODE=headless requires .elnora-ai-agent-hackathon-starter-kit-marker," -ForegroundColor Red
             Write-Host "    which is missing at $markerFile." -ForegroundColor Red
             Write-Host ""
             Write-Host "    The marker is the integrity gate that lets us run claude with" -ForegroundColor Red
@@ -1652,7 +1652,7 @@ if ($claudeAvailable) {
             Write-Host "    INSTALL_FOR_AGENTS.md is the doc we shipped." -ForegroundColor Red
             Write-Host ""
             Write-Host "    To recover, re-run the bootstrap one-liner (writes a fresh marker):" -ForegroundColor Red
-            Write-Host "      irm https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex" -ForegroundColor Red
+            Write-Host "      irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex" -ForegroundColor Red
             exit 4
         }
 

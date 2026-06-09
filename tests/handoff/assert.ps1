@@ -211,7 +211,7 @@ $cleanupFiles = @(
     "install.sh", "install.ps1",
     "setup-mac.sh", "setup-windows.ps1",
     "INSTALL_FOR_AGENTS.md", "RECOVERY.md",
-    ".elnora-starter-kit-marker"
+    ".elnora-ai-agent-hackathon-starter-kit-marker"
 )
 $cleanupOk = $true
 foreach ($f in $cleanupFiles) {

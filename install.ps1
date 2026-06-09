@@ -1,8 +1,8 @@
 # ============================================================
-# Elnora Starter Kit - One-liner Installer (Windows)
+# Elnora AI Agent Hackathon Starter Kit - One-liner Installer (Windows)
 # ============================================================
 # Usage (PowerShell):
-#   irm https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex
 #
 # Prompts for a workspace name (used for BOTH the local folder name AND
 # the GitHub repo name created in Phase 2), downloads the starter kit zip
@@ -21,7 +21,7 @@ $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $RepoOwner = "Elnora-AI"
-$RepoName  = "elnora-starter-kit"
+$RepoName  = "elnora-ai-agent-hackathon-starter-kit"
 $Branch    = "main"
 
 # ---- Workspace name -------------------------------------------------------
@@ -34,7 +34,7 @@ $Branch    = "main"
 #   1. $env:ELNORA_WORKSPACE_NAME (CI / scripted runs).
 #   2. Interactive Read-Host prompt (irm | iex runs in the caller's
 #      session, so Read-Host reaches the real console).
-#   3. Fallback to "elnora-starter-kit" for non-interactive contexts
+#   3. Fallback to "elnora-ai-agent-hackathon-starter-kit" for non-interactive contexts
 #      with no env override.
 #
 # Validation enforces the project naming convention (see CLAUDE.md
@@ -65,7 +65,7 @@ $defaultName = "$userLower-agents"
 
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Cyan
-Write-Host "  Elnora Starter Kit - Bootstrap" -ForegroundColor Cyan
+Write-Host "  Elnora AI Agent Hackathon Starter Kit - Bootstrap" -ForegroundColor Cyan
 Write-Host "===========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -93,7 +93,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_WORKSPACE_NAME)) {
     }
     Write-Host ""
 } else {
-    $WorkspaceName = "elnora-starter-kit"
+    $WorkspaceName = "elnora-ai-agent-hackathon-starter-kit"
 }
 
 if ($WorkspaceName -notmatch $nameRegex) {
@@ -243,7 +243,7 @@ Set-Location $TargetDir
 
 # Strip dev/CI scaffolding the customer can't use anyway. tests/handoff/ exists
 # for our CI assertions; .github/ holds workflows + dependabot config that only
-# fire on the official Elnora-AI/elnora-starter-kit repo. Both ride along in the
+# fire on the official Elnora-AI/elnora-ai-agent-hackathon-starter-kit repo. Both ride along in the
 # zip and would just clutter the customer's directory. -ErrorAction
 # SilentlyContinue keeps this idempotent on re-runs after the dirs are gone.
 Write-Host "Stripping dev/CI scaffolding (tests/, .github/)..." -ForegroundColor Cyan
@@ -261,14 +261,14 @@ Write-Host "  Done." -ForegroundColor Gray
 # wipe + re-download above), so re-blessing here is correct: the doc is
 # always exactly what GitHub just served, and the marker stays in lockstep
 # with whatever INSTALL_FOR_AGENTS.md content the customer is about to run.
-$markerPath = Join-Path $TargetDir ".elnora-starter-kit-marker"
+$markerPath = Join-Path $TargetDir ".elnora-ai-agent-hackathon-starter-kit-marker"
 $installForAgentsPath = Join-Path $TargetDir "INSTALL_FOR_AGENTS.md"
 if (Test-Path -LiteralPath $installForAgentsPath) {
     $hash = (Get-FileHash -Path $installForAgentsPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     $markerContent = "version: 1`ncreated: $now`ninstall_for_agents_sha256: $hash`n"
     [System.IO.File]::WriteAllText($markerPath, $markerContent, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "  Wrote integrity marker (.elnora-starter-kit-marker)." -ForegroundColor Gray
+    Write-Host "  Wrote integrity marker (.elnora-ai-agent-hackathon-starter-kit-marker)." -ForegroundColor Gray
 }
 
 # Bypass execution policy for this process only so setup-windows.ps1 runs

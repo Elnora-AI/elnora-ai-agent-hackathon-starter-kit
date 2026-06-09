@@ -403,7 +403,7 @@ persist_local_bin_path() {
     if ! grep -Fq "$export_line" "$shell_profile" 2>/dev/null; then
         {
             echo ""
-            echo "# Added by Elnora Starter Kit setup-mac.sh"
+            echo "# Added by Elnora AI Agent Hackathon Starter Kit setup-mac.sh"
             echo "$export_line"
         } >> "$shell_profile"
         echo "  Persisted ~/.local/bin to PATH in $shell_profile (open a fresh terminal to inherit it)."
@@ -428,7 +428,7 @@ persist_brew_path() {
     if ! grep -Fq "$brew_eval" "$shell_profile" 2>/dev/null; then
         {
             echo ""
-            echo "# Added by Elnora Starter Kit setup-mac.sh"
+            echo "# Added by Elnora AI Agent Hackathon Starter Kit setup-mac.sh"
             echo "$brew_eval"
         } >> "$shell_profile"
         echo "  Ensuring shell profile loads Homebrew (idempotent) -> $shell_profile."
@@ -951,7 +951,7 @@ else
             [Ss]*)
                 # Use the live $PWD for the resume hint -- the user picked
                 # their workspace name in install.sh, so the folder is no
-                # longer guaranteed to be ~/Documents/elnora-starter-kit.
+                # longer guaranteed to be ~/Documents/elnora-ai-agent-hackathon-starter-kit.
                 # setup-mac.sh has not `cd`'d anywhere by this point, so
                 # $PWD == kit dir.
                 kit_dir_display="$PWD"
@@ -1144,7 +1144,7 @@ fi
 # The exact prompt handed to Claude. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
 # divergence here is the bug headless mode is supposed to catch.
-HANDOFF_PROMPT="Phase 1 of the Elnora Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log."
+HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log."
 
 if command -v claude >/dev/null 2>&1; then
     if [ "${ELNORA_SKIP_HANDOFF:-}" = "1" ]; then
@@ -1159,7 +1159,7 @@ if command -v claude >/dev/null 2>&1; then
 
     # Verify INSTALL_FOR_AGENTS.md hasn't been tampered with since install.sh
     # extracted the tarball. install.sh records the sha256 in
-    # .elnora-starter-kit-marker on fresh extract. If the file changed
+    # .elnora-ai-agent-hackathon-starter-kit-marker on fresh extract. If the file changed
     # post-extract, abort - the agent shouldn't be handed off to a doc we
     # didn't ship, especially when headless mode runs with bypassPermissions.
     #
@@ -1176,7 +1176,7 @@ if command -v claude >/dev/null 2>&1; then
     # when the script is read on stdin (`bash < setup-mac.sh`) and equals
     # `/dev/stdin` or `-` for some piped invocations. Fall back to $0,
     # then to $PWD, so the marker check still finds the right directory
-    # for power users who run `bash ~/Documents/elnora-starter-kit/setup-mac.sh`
+    # for power users who run `bash ~/Documents/elnora-ai-agent-hackathon-starter-kit/setup-mac.sh`
     # from outside the kit dir.
     script_path="${BASH_SOURCE[0]:-$0}"
     if [ -z "$script_path" ] || [ "$script_path" = "/dev/stdin" ] || [ "$script_path" = "-" ]; then
@@ -1185,7 +1185,7 @@ if command -v claude >/dev/null 2>&1; then
         SCRIPT_DIR="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)"
         [ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="$PWD"
     fi
-    MARKER_FILE="$SCRIPT_DIR/.elnora-starter-kit-marker"
+    MARKER_FILE="$SCRIPT_DIR/.elnora-ai-agent-hackathon-starter-kit-marker"
     DOC_FILE="$SCRIPT_DIR/INSTALL_FOR_AGENTS.md"
     marker_missing=0
     if [ -f "$DOC_FILE" ]; then
@@ -1200,7 +1200,7 @@ if command -v claude >/dev/null 2>&1; then
                 echo "    Refusing to hand off to claude. If you intentionally edited the doc," >&2
                 echo "    delete $MARKER_FILE and re-run, or re-run the bootstrap one-liner for" >&2
                 echo "    a clean copy:" >&2
-                echo "      curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash" >&2
+                echo "      curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash" >&2
                 exit 3
             fi
         else
@@ -1229,7 +1229,7 @@ if command -v claude >/dev/null 2>&1; then
         # human is on the other end approving each tool call; headless
         # mode is not allowed that latitude.
         if [ "$marker_missing" = "1" ]; then
-            echo "[!] ELNORA_HANDOFF_MODE=headless requires .elnora-starter-kit-marker," >&2
+            echo "[!] ELNORA_HANDOFF_MODE=headless requires .elnora-ai-agent-hackathon-starter-kit-marker," >&2
             echo "    which is missing at $MARKER_FILE." >&2
             echo "" >&2
             echo "    The marker is the integrity gate that lets us run claude with" >&2
@@ -1237,7 +1237,7 @@ if command -v claude >/dev/null 2>&1; then
             echo "    INSTALL_FOR_AGENTS.md is the doc we shipped." >&2
             echo "" >&2
             echo "    To recover, re-run the bootstrap one-liner (writes a fresh marker):" >&2
-            echo "      curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash" >&2
+            echo "      curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash" >&2
             exit 4
         fi
 

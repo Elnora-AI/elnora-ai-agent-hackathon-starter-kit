@@ -94,7 +94,7 @@ jobs:
       - name: Pre-set git config (skip Read prompt)
         run: |
           git config --global user.name "CI Smoke Test"
-          git config --global user.email "ci@elnora-starter-kit.test"
+          git config --global user.email "ci@elnora-ai-agent-hackathon-starter-kit.test"
 
       - name: Run setup-mac.sh with handoff skipped
         env:
@@ -158,7 +158,7 @@ jobs:
         shell: pwsh
         run: |
           git config --global user.name "CI Smoke Test"
-          git config --global user.email "ci@elnora-starter-kit.test"
+          git config --global user.email "ci@elnora-ai-agent-hackathon-starter-kit.test"
 
       - name: Install winget via Microsoft.WinGet.Client module
         # Windows-Server runners don't ship winget. Microsoft publishes an

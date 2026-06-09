@@ -199,7 +199,7 @@ it, the handoff task is configured but inert.
 - **Just open Claude in the terminal yourself.** If you'd rather skip the
   task system entirely, run:
   ```
-  claude "Phase 1 of the Elnora Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup."
+  claude "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup."
   ```
   This is byte-identical to what the helper does.
 

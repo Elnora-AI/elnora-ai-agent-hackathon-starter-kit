@@ -187,10 +187,10 @@ mode, follow these adjustments:
      its body (`grep -c '### First-run setup' CLAUDE.md` should print `0`).
   6. Step 11 cleanup ran: none of `install.sh`, `install.ps1`,
      `setup-mac.sh`, `setup-windows.ps1`, `INSTALL_FOR_AGENTS.md`,
-     `RECOVERY.md`, `.elnora-starter-kit-marker` exist on disk; `.vscode/`
+     `RECOVERY.md`, `.elnora-ai-agent-hackathon-starter-kit-marker` exist on disk; `.vscode/`
      directory is gone. Run `for f in install.sh install.ps1 setup-mac.sh
      setup-windows.ps1 INSTALL_FOR_AGENTS.md RECOVERY.md
-     .elnora-starter-kit-marker; do [ ! -e "$f" ] || echo "STILL: $f";
+     .elnora-ai-agent-hackathon-starter-kit-marker; do [ ! -e "$f" ] || echo "STILL: $f";
      done; [ ! -d .vscode ] || echo "STILL: .vscode/"` — output must be
      empty.
   7. `elnora whoami` and `elnora doctor` completed without
@@ -469,7 +469,7 @@ If any gate fails: tell the user what went wrong, ask them to re-run
 
 The user picked their workspace name back in `install.sh` / `install.ps1`,
 so the local folder is already named for them (e.g. `carmen-agents` rather
-than the generic `elnora-starter-kit`). The invariant we maintain through
+than the generic `elnora-ai-agent-hackathon-starter-kit`). The invariant we maintain through
 the rest of this step: **the local folder name and the GitHub repo name
 are always identical.** If we ever have to change one, we change both, in
 the same step, before any git history exists.
@@ -1089,7 +1089,7 @@ finish it first and come back here.
 > bootstrap downloaders (`install.sh`/`install.ps1`), the Phase 1 installer
 > (`setup-mac.sh`/`setup-windows.ps1`), this very doc
 > (`INSTALL_FOR_AGENTS.md`), the install-failure triage doc (`RECOVERY.md`),
-> the integrity marker (`.elnora-starter-kit-marker`), and the VS Code
+> the integrity marker (`.elnora-ai-agent-hackathon-starter-kit-marker`), and the VS Code
 > handoff helpers (`.vscode/`). All of those were one-shot — they served
 > their purpose and from here they are clutter in what's supposed to be
 > the user's clean starter repo.
@@ -1119,7 +1119,7 @@ Run from the repo root:
 rm -f install.sh install.ps1 \
       setup-mac.sh setup-windows.ps1 \
       INSTALL_FOR_AGENTS.md RECOVERY.md \
-      .elnora-starter-kit-marker \
+      .elnora-ai-agent-hackathon-starter-kit-marker \
       .elnora-handoff-resume.json
 git rm -q -f .vscode/run-handoff.ps1 .vscode/run-handoff.sh .vscode/tasks.json
 ```
@@ -1149,7 +1149,7 @@ If a future change adds a fourth file under `.vscode/`, append it to the
 ```
 for f in install.sh install.ps1 setup-mac.sh setup-windows.ps1 \
          INSTALL_FOR_AGENTS.md RECOVERY.md \
-         .elnora-starter-kit-marker .elnora-handoff-resume.json; do
+         .elnora-ai-agent-hackathon-starter-kit-marker .elnora-handoff-resume.json; do
     [ ! -e "$f" ] || echo "STILL PRESENT: $f"
 done
 [ ! -d .vscode ] || echo "STILL PRESENT: .vscode/"
@@ -1200,7 +1200,7 @@ content (preserve all newlines and leading hashes verbatim):
 # My Agent Workspace
 
 A private, Elnora-powered agent workspace built from the
-[Elnora Starter Kit](https://github.com/Elnora-AI/elnora-starter-kit).
+[Elnora AI Agent Hackathon Starter Kit](https://github.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit).
 The install scaffolding has been trimmed; this repo now contains only
 what's useful for day-to-day work.
 
@@ -1231,10 +1231,10 @@ stays where it is:
 
 ```bash
 # macOS
-curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash
 
 # Windows
-irm https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex
 ```
 
 ## License

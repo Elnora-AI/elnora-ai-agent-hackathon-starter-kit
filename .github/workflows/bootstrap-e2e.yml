@@ -3,8 +3,8 @@ name: bootstrap-e2e
 # True one-liner end-to-end test — `install.sh` (or `install.ps1`) is the
 # real entry point users hit via:
 #
-#   curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.sh | bash
-#   irm  https://raw.githubusercontent.com/Elnora-AI/elnora-starter-kit/main/install.ps1 | iex
+#   curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.sh | bash
+#   irm  https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex
 #
 # What handoff-e2e.yml proves:    setup-mac.sh / setup-windows.ps1 → claude Phase 2 works.
 # What install-smoke-test proves: setup-mac.sh / setup-windows.ps1 install Phase 1 cleanly.
@@ -67,7 +67,7 @@ jobs:
       # install.sh now prompts the user for a workspace name on first
       # run (folder/repo name sync feature). In CI we have no TTY, so
       # install.sh would otherwise fall through to its non-interactive
-      # default ("elnora-starter-kit"). Setting this env var exercises
+      # default ("elnora-ai-agent-hackathon-starter-kit"). Setting this env var exercises
       # the same code path real users hit when they answer the prompt
       # — folder gets created at $HOME/Documents/$ELNORA_WORKSPACE_NAME
       # and every downstream step references that path.
@@ -90,7 +90,7 @@ jobs:
       - name: Pre-set git config (skip Read prompts)
         run: |
           git config --global user.name "Bootstrap E2E"
-          git config --global user.email "bootstrap-e2e@elnora-starter-kit.test"
+          git config --global user.email "bootstrap-e2e@elnora-ai-agent-hackathon-starter-kit.test"
 
 
       - name: Stage fake Obsidian vault for KB auto-detect
@@ -105,7 +105,7 @@ jobs:
         # depending on the tarball being current on main.
         #
         # Path is now $HOME/Documents/$ELNORA_WORKSPACE_NAME (was
-        # hardcoded to ~/Documents/elnora-starter-kit). install.sh
+        # hardcoded to ~/Documents/elnora-ai-agent-hackathon-starter-kit). install.sh
         # honors $ELNORA_WORKSPACE_NAME for $TARGET_DIR, so pre-populating
         # the same path triggers the wipe-and-replace branch as expected.
         run: |
@@ -122,7 +122,7 @@ jobs:
           find "$HOME/Documents/$ELNORA_WORKSPACE_NAME" -maxdepth 1 -mindepth 1 | head -20
 
       - name: Pre-stage integrity marker (skip-tarball branch)
-        # install.sh only writes .elnora-starter-kit-marker on FRESH_EXTRACT
+        # install.sh only writes .elnora-ai-agent-hackathon-starter-kit-marker on FRESH_EXTRACT
         # (when it downloaded the tarball itself). The pre-populate step
         # above triggers install.sh's "already exists" branch, so the marker
         # never gets minted. setup-mac.sh's headless mode hard-refuses
@@ -134,8 +134,8 @@ jobs:
             echo "version: 1"
             echo "created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "install_for_agents_sha256: $sha"
-          } > "$KIT/.elnora-starter-kit-marker"
-          echo "  Wrote $KIT/.elnora-starter-kit-marker (sha256=$sha)"
+          } > "$KIT/.elnora-ai-agent-hackathon-starter-kit-marker"
+          echo "  Wrote $KIT/.elnora-ai-agent-hackathon-starter-kit-marker (sha256=$sha)"
 
       - name: Pre-stage .claude/knowledge-base.local.md (no agent writes to .claude/)
         # The agent in headless mode is NOT allowed to write under .claude/
@@ -217,17 +217,17 @@ jobs:
       - name: Verify folder name matches ELNORA_WORKSPACE_NAME
         # Regression test for the install.sh prompt feature: the folder
         # MUST end up at $HOME/Documents/$ELNORA_WORKSPACE_NAME, not at
-        # the legacy ~/Documents/elnora-starter-kit path. If install.sh
+        # the legacy ~/Documents/elnora-ai-agent-hackathon-starter-kit path. If install.sh
         # ever stops honoring the env var, this catches it before users do.
         if: always()
         run: |
           expected="$HOME/Documents/$ELNORA_WORKSPACE_NAME"
-          legacy="$HOME/Documents/elnora-starter-kit"
+          legacy="$HOME/Documents/elnora-ai-agent-hackathon-starter-kit"
           if [ ! -d "$expected" ]; then
             echo "::error::expected install dir $expected does not exist"
             exit 1
           fi
-          if [ "$ELNORA_WORKSPACE_NAME" != "elnora-starter-kit" ] && [ -d "$legacy" ]; then
+          if [ "$ELNORA_WORKSPACE_NAME" != "elnora-ai-agent-hackathon-starter-kit" ] && [ -d "$legacy" ]; then
             echo "::error::legacy path $legacy was created — install.sh did not honor ELNORA_WORKSPACE_NAME"
             exit 1
           fi
@@ -279,7 +279,7 @@ jobs:
         shell: pwsh
         run: |
           git config --global user.name "Bootstrap E2E"
-          git config --global user.email "bootstrap-e2e@elnora-starter-kit.test"
+          git config --global user.email "bootstrap-e2e@elnora-ai-agent-hackathon-starter-kit.test"
 
       - name: Stage fake Obsidian vault for KB auto-detect
         shell: pwsh
@@ -292,7 +292,7 @@ jobs:
         shell: pwsh
         run: |
           # Path is now Documents\$env:ELNORA_WORKSPACE_NAME (was hardcoded
-          # to elnora-starter-kit). install.ps1 honors the env var for
+          # to elnora-ai-agent-hackathon-starter-kit). install.ps1 honors the env var for
           # $TargetDir, so pre-populating the same path triggers the
           # wipe-and-replace branch as expected.
           $target = Join-Path $env:USERPROFILE "Documents\$env:ELNORA_WORKSPACE_NAME"
@@ -307,7 +307,7 @@ jobs:
           Get-ChildItem $target | Select-Object -First 20
 
       - name: Pre-stage integrity marker (skip-zip branch)
-        # install.ps1 only writes .elnora-starter-kit-marker on FreshExtract
+        # install.ps1 only writes .elnora-ai-agent-hackathon-starter-kit-marker on FreshExtract
         # (when it downloaded the zip itself). The pre-populate step above
         # triggers install.ps1's "already exists" branch, so the marker
         # never gets minted. setup-windows.ps1's headless mode hard-refuses
@@ -318,7 +318,7 @@ jobs:
           $docPath = Join-Path $kit "INSTALL_FOR_AGENTS.md"
           $hash = (Get-FileHash -Path $docPath -Algorithm SHA256).Hash.ToLowerInvariant()
           $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          $markerPath = Join-Path $kit ".elnora-starter-kit-marker"
+          $markerPath = Join-Path $kit ".elnora-ai-agent-hackathon-starter-kit-marker"
           $content = "version: 1`ncreated: $now`ninstall_for_agents_sha256: $hash`n"
           [System.IO.File]::WriteAllText($markerPath, $content, [System.Text.UTF8Encoding]::new($false))
           Write-Host "  Wrote $markerPath (sha256=$hash)"
@@ -392,18 +392,18 @@ jobs:
       - name: Verify folder name matches ELNORA_WORKSPACE_NAME
         # Regression test for the install.ps1 prompt feature: the folder
         # MUST end up at Documents\$env:ELNORA_WORKSPACE_NAME, not at
-        # the legacy elnora-starter-kit path. If install.ps1 ever stops
+        # the legacy elnora-ai-agent-hackathon-starter-kit path. If install.ps1 ever stops
         # honoring the env var, this catches it before users do.
         if: always()
         shell: pwsh
         run: |
           $expected = Join-Path $env:USERPROFILE "Documents\$env:ELNORA_WORKSPACE_NAME"
-          $legacy = Join-Path $env:USERPROFILE "Documents\elnora-starter-kit"
+          $legacy = Join-Path $env:USERPROFILE "Documents\elnora-ai-agent-hackathon-starter-kit"
           if (-not (Test-Path $expected)) {
             Write-Host "::error::expected install dir $expected does not exist"
             exit 1
           }
-          if ($env:ELNORA_WORKSPACE_NAME -ne "elnora-starter-kit" -and (Test-Path $legacy)) {
+          if ($env:ELNORA_WORKSPACE_NAME -ne "elnora-ai-agent-hackathon-starter-kit" -and (Test-Path $legacy)) {
             Write-Host "::error::legacy path $legacy was created — install.ps1 did not honor ELNORA_WORKSPACE_NAME"
             exit 1
           }
