@@ -13,8 +13,8 @@ name: agent-selection-test
 #   setup-{mac.sh,windows.ps1} installs + routes to the chosen agent.
 #
 # A Codex *handoff* E2E (the agent actually following INSTALL_FOR_AGENTS.md
-# headless) is a follow-up: it needs an OPENAI_API_KEY repo secret and Codex's
-# transcript format wired into assertions. See README / the dual-agent PR notes.
+# headless) lives in handoff-e2e.yml — dispatch it with agent=codex. It needs
+# the OPENAI_API_KEY repo secret.
 
 on:
   workflow_dispatch:
