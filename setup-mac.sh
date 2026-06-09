@@ -77,7 +77,10 @@ done
 # is_done <name>   -> exit 0 if this checkpoint was reached on a previous run.
 # mark_done <name> -> record a checkpoint (idempotent; one name per line).
 is_done()   { grep -qxF "$1" "$SETUP_STATE_FILE" 2>/dev/null; }
-mark_done() { is_done "$1" || printf '%s\n' "$1" >> "$SETUP_STATE_FILE" 2>/dev/null || true; }
+mark_done() {
+    is_done "$1" || printf '%s\n' "$1" >> "$SETUP_STATE_FILE" 2>/dev/null || \
+        echo "  [WARN] Could not write checkpoint '$1' to $SETUP_STATE_FILE - a re-run will repeat this step instead of resuming past it." >&2
+}
 
 # ------------------------------------------------------------
 # remediation_hint "<step label>"
@@ -1446,7 +1449,15 @@ PY
             rc=${PIPESTATUS[0]}
         fi
         echo ""
-        echo "$AGENT_NAME handoff exited with code $rc (transcript saved to $TRANSCRIPT, $(wc -l < "$TRANSCRIPT" | tr -d ' ') events)"
+        # An empty/missing transcript means the agent died before emitting a
+        # single event (auth failure, crash on startup) - that must read as a
+        # FAILED: marker in the install log, not as a quiet success line.
+        if [ -s "$TRANSCRIPT" ]; then
+            echo "$AGENT_NAME handoff exited with code $rc (transcript saved to $TRANSCRIPT, $(wc -l < "$TRANSCRIPT" | tr -d ' ') events)"
+        else
+            echo "FAILED: $AGENT_NAME handoff produced no transcript at $TRANSCRIPT (exit $rc) - the agent likely crashed before emitting output; check the lines above for auth or network errors." >&2
+            [ "$rc" -eq 0 ] && rc=1
+        fi
         exit "$rc"
     fi
 
