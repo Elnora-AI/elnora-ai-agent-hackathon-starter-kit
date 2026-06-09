@@ -1,0 +1,58 @@
+# Dependabot — automated dependency updates
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates
+#
+# Remove any ecosystem blocks that don't apply to your project.
+
+version: 2
+updates:
+  # GitHub Actions workflow files
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Uncomment the ecosystems you use. Leaving a block enabled without the
+  # matching manifest (package.json, requirements.txt, Dockerfile, etc.) logs
+  # errors in the Dependabot Insights tab.
+
+  # Node.js (package.json / package-lock.json)
+  # - package-ecosystem: "npm"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   open-pull-requests-limit: 10
+  #   labels:
+  #     - "dependencies"
+  #     - "javascript"
+
+  # Python (requirements.txt / pyproject.toml / pipfile)
+  # - package-ecosystem: "pip"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   open-pull-requests-limit: 10
+  #   labels:
+  #     - "dependencies"
+  #     - "python"
+
+  # Docker
+  # - package-ecosystem: "docker"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+
+  # Rust
+  # - package-ecosystem: "cargo"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+
+  # Go
+  # - package-ecosystem: "gomod"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"

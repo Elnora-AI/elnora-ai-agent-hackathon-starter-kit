@@ -1,0 +1,221 @@
+name: install-smoke-test
+
+# Runs setup-mac.sh and setup-windows.ps1 on real GitHub-hosted runners with
+# ELNORA_SKIP_HANDOFF=1 so the script completes Phase 1 (install all tools,
+# print version summary, print handoff banner) without trying to launch
+# Claude — Claude can't auth on a headless runner.
+#
+# Caveats vs a true fresh-laptop dry run:
+#   - Runners come pre-loaded with dev tools (Git, Node, Python, gh on most).
+#     So most "install" steps hit the "already installed, skipping" path.
+#   - No GUI: can't test browser auth, VS Code PATH cache, or Xcode CLT dialog.
+#   - No corporate Group Policy, no antivirus interference.
+#   - Read-Host prompts would hang; we pre-set git config to avoid one.
+#   - Neither windows-2022 nor windows-2025 runners include winget by default
+#     (they ship Chocolatey instead — winget runs on App Installer, a Microsoft
+#     Store package only available on Win10/11 consumer SKUs, not Windows
+#     Server). Real Win10/11 attendees have winget pre-installed.
+#     To exercise the winget paths in CI we install winget via Microsoft's
+#     official PowerShell module: Microsoft.WinGet.Client + the
+#     Repair-WinGetPackageManager cmdlet, which is designed exactly for this
+#     "winget missing on Server" case. Without this, setup-windows.ps1's
+#     winget-dependent steps (Node/Git/Python/VS Code/gh/Obsidian — i.e. most
+#     of them) would all fail in CI, masking real bugs.
+#   - Shared CI runner IP pools routinely exhaust the GitHub API's 60/hour
+#     unauthenticated rate limit. setup-mac.sh and setup-windows.ps1 work
+#     around this by pinning the Elnora CLI version, which bypasses the
+#     installer's API-based version resolution.
+#
+# Trigger: per-job split so PR review stays fast.
+#   - lint-ascii: auto on PR / push to main when a setup or install script
+#     changes. Cheap (~30s) — keeps the Windows-mojibake guard on every
+#     change.
+#   - macos / windows: workflow_dispatch only. Heavy (~10 min each), so
+#     we don't fire them on every PR. Run manually via
+#     `gh workflow run install-smoke-test.yml` before cutting a release
+#     or when you want a fresh-machine sanity check.
+#
+# Security: this workflow uses no untrusted inputs (no github.event.*,
+# no github.head_ref, no PR titles/bodies). Only static commands and
+# pinned action versions.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "setup-mac.sh"
+      - "setup-windows.ps1"
+      - "install.sh"
+      - "install.ps1"
+      - ".github/workflows/install-smoke-test.yml"
+      - ".github/scripts/lint-ascii.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "setup-mac.sh"
+      - "setup-windows.ps1"
+      - "install.sh"
+      - "install.ps1"
+      - ".github/workflows/install-smoke-test.yml"
+      - ".github/scripts/lint-ascii.py"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-ascii:
+    # Fast gate: rejects any non-ASCII char appearing outside a `#` comment in
+    # the four user-facing setup/install scripts. Why: Windows PowerShell 5.1
+    # (the default on Win10/11) reads .ps1 files as Windows-1252 unless they
+    # carry a UTF-8 BOM. A stray em-dash or curly quote inside a "..." string
+    # gets mojibaked into bytes that include a `"`, which closes the string
+    # early and cascades parser errors through the rest of the file. We saw
+    # exactly this break a real client install. Easier to enforce ASCII than
+    # to manage BOMs across editors and `git archive` zip flows.
+    name: ASCII-only lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reject non-ASCII outside # comments
+        run: python3 .github/scripts/lint-ascii.py
+
+  macos:
+    name: macOS (setup-mac.sh)
+    # Manual-only — see the trigger comment block at the top of this file
+    # for why. Skipped on PR/push events.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pre-set git config (skip Read prompt)
+        run: |
+          git config --global user.name "CI Smoke Test"
+          git config --global user.email "ci@elnora-starter-kit.test"
+
+      - name: Run setup-mac.sh with handoff skipped
+        env:
+          ELNORA_SKIP_HANDOFF: "1"
+          # PIN ELNORA_CLI_VERSION HERE ONLY (CI workflow), never in
+          # setup-mac.sh / setup-windows.ps1 themselves. Real users must run
+          # the unpinned "latest" path — that's the user-experience surface we
+          # are committing to. CI runners share IP pools that exhaust GitHub's
+          # 60/hr unauthenticated rate limit on api.github.com/.../latest, so
+          # the unpinned path flakes here for reasons that have nothing to do
+          # with our scripts. The pin makes CI a deterministic gate on script
+          # logic while leaving the real-user path unpinned.
+          #
+          # This file has churned between pinned/unpinned multiple times:
+          #   #20 add pin -> #21 unpin -> #24 re-pin -> #25 re-unpin -> now re-pin.
+          # Going-forward rule: PIN HERE, NEVER IN setup scripts. If a future
+          # maintainer wants to surface real-world rate-limit risk in CI, do
+          # it in a separate workflow so this gate stays meaningful. The
+          # proper fix is upstream GITHUB_TOKEN auth in the cli.elnora.ai
+          # installer.
+          #
+          # Bump this when cutting a new Elnora CLI release.
+          ELNORA_CLI_VERSION: v1.5.0
+        run: |
+          chmod +x setup-mac.sh
+          bash setup-mac.sh
+
+      - name: Show install log
+        # Only on failure: on success, the install log is identical to what
+        # was already streamed by the Run step above, so dumping it again
+        # ~doubles the job log size for no debug benefit. The "Fail if any
+        # in-script step reported FAILURE" gate below still asserts on the
+        # log file regardless.
+        if: failure()
+        run: |
+          echo "=== ~/claude-starter-install.log ==="
+          cat "$HOME/claude-starter-install.log" || echo "(log not produced)"
+
+      - name: Fail if any in-script step reported FAILURE
+        if: always()
+        run: |
+          # The setup script always exits 0 (so IDE terminals don't hide the
+          # remediation recap). To make this workflow a meaningful CI gate,
+          # grep the install log for the FAILURE: marker the script emits in
+          # its per-step failure box and fail the job if any are present.
+          if [ -f "$HOME/claude-starter-install.log" ] && grep -q "FAILURE:" "$HOME/claude-starter-install.log"; then
+            echo "::error::setup-mac.sh reported one or more in-step FAILURE markers (see install log above)"
+            exit 1
+          fi
+
+  windows:
+    name: Windows (setup-windows.ps1)
+    # Manual-only — see the matching `if:` on the macOS job above.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pre-set git config (skip Read prompt)
+        shell: pwsh
+        run: |
+          git config --global user.name "CI Smoke Test"
+          git config --global user.email "ci@elnora-starter-kit.test"
+
+      - name: Install winget via Microsoft.WinGet.Client module
+        # Windows-Server runners don't ship winget. Microsoft publishes an
+        # official PowerShell module that exposes Repair-WinGetPackageManager
+        # specifically for this case — installs winget + dependencies even
+        # when the Microsoft Store / App Installer isn't available.
+        # https://learn.microsoft.com/en-us/windows/package-manager/winget/
+        #
+        # GitHub-hosted runners run PowerShell 7.4+, where Install-PSResource
+        # (Microsoft.PowerShell.PSResourceGet) is the supported install path.
+        # The legacy `Install-PackageProvider -Name NuGet` cmdlet is part of
+        # PowerShellGet 2.x's compat layer that PS 7 doesn't ship with by
+        # default — using it here fails with "No match was found for the
+        # specified search criteria for the provider 'NuGet'".
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          Install-PSResource -Name Microsoft.WinGet.Client -Repository PSGallery -TrustRepository -Reinstall
+          Import-Module Microsoft.WinGet.Client
+          # -AllUsers required on Windows Server (the cmdlet itself tells you
+          # this when run without it: "Failed to repair winget. Try running
+          # with -AllUsers in administrator mode."). GH runners are admin.
+          Repair-WinGetPackageManager -Latest -Force -AllUsers
+          Write-Host "winget version: $(winget --version)"
+
+      - name: Run setup-windows.ps1 with handoff skipped
+        shell: pwsh
+        env:
+          ELNORA_SKIP_HANDOFF: "1"
+          # PIN HERE ONLY — see the matching long-form comment in the macOS
+          # job above for the full rationale and "do not unpin again" rule.
+          # Bump this when cutting a new Elnora CLI release.
+          ELNORA_CLI_VERSION: v1.5.0
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\setup-windows.ps1
+
+      - name: Show install log
+        # Only on failure: see matching comment on the macOS step. On
+        # success the install log duplicates the Run step output exactly,
+        # which roughly doubles each job's log volume for no upside.
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "=== claude-starter-install.log ==="
+          Get-Content "$env:USERPROFILE\claude-starter-install.log" -ErrorAction SilentlyContinue
+
+      - name: Fail if any in-script step reported FAILURE
+        if: always()
+        shell: pwsh
+        run: |
+          # See matching comment in the macOS job above.
+          $logPath = "$env:USERPROFILE\claude-starter-install.log"
+          if (Test-Path $logPath) {
+            $log = Get-Content $logPath -Raw
+            if ($log -match "FAILURE:") {
+              Write-Host "::error::setup-windows.ps1 reported one or more in-step FAILURE markers (see install log above)"
+              exit 1
+            }
+          }

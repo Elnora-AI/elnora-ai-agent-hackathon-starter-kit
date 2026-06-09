@@ -1,0 +1,43 @@
+---
+# ============================================================
+# Knowledge Base Settings — single source of truth for vault paths
+# ============================================================
+# Copy this file to `.claude/knowledge-base.local.md` and fill in your paths.
+# This file is gitignored — each team member has their own copy.
+#
+# Claude will ask you for these values on first run if the file doesn't exist,
+# then write your answers here.
+# ============================================================
+
+# Absolute path to your knowledge base root.
+# Use forward slashes on Windows too — they work everywhere and
+# avoid YAML escaping issues with backslashes.
+# Examples:
+#   macOS Obsidian local:   /Users/you/Obsidian/MyVault
+#   macOS iCloud:           /Users/you/Library/Mobile Documents/com~apple~CloudDocs/MyVault
+#   macOS Google Drive:     /Users/you/Library/CloudStorage/GoogleDrive-you@example.com/My Drive/vault
+#   macOS OneDrive:         /Users/you/Library/CloudStorage/OneDrive-Personal/vault
+#   macOS Dropbox:          /Users/you/Library/CloudStorage/Dropbox/MyVault
+#   Windows local:          C:/Users/you/Documents/MyVault
+#   Windows OneDrive:       C:/Users/you/OneDrive/vault
+#   Windows Dropbox:        C:/Users/you/Dropbox/MyVault
+vault_path: <ABSOLUTE_PATH_TO_YOUR_VAULT>
+
+# Subdirectory inside the vault that holds your main workspace (optional).
+# Uncomment and set if you want Claude to default to a sub-directory.
+# Leave commented out to use the vault root.
+# Examples:
+#   company_dir: Acme-Lab           # one folder per company
+#   company_dir: 01-projects        # numbered top-level folders (PARA-style)
+#   company_dir: work/current       # nested path
+# company_dir: <YOUR_WORKSPACE_SUBDIR>
+---
+
+# Knowledge Base Settings
+
+All vault path variables are defined in the frontmatter above. This file is
+the **single source of truth** for knowledge base paths in this project.
+
+When Claude needs to read or write vault content, it loads this file and
+resolves paths from the frontmatter — never hardcode vault paths in other
+files or prompts.

@@ -1,0 +1,641 @@
+name: handoff-e2e
+
+# End-to-end test of the Phase 1 → Phase 2 handoff. Runs the real setup
+# script, lets it `claude -p` into INSTALL_FOR_AGENTS.md (headless mode),
+# and asserts on disk that Claude actually completed Phase 2.
+#
+# Manual-only (workflow_dispatch). Uses real ANTHROPIC_API_KEY and a real
+# ELNORA_API_KEY against the live Elnora API — costs LLM tokens per run.
+#
+# Required GitHub repository secrets:
+#   ANTHROPIC_API_KEY   - sk-ant-* key. Set a low monthly budget cap on it
+#                         in the Anthropic console so a runaway test can't
+#                         spike the bill.
+#   ELNORA_API_KEY_TEST - elnora_live_* key. Recommend a dedicated test
+#                         account, not your personal one — every run will
+#                         hit `elnora whoami` and `elnora doctor`.
+#   PAT_TOKEN_TEST      - GitHub PAT used to exercise the gh auth + repo
+#                         create + push path in headless mode. Each run
+#                         creates a private repo named
+#                         `elnora-handoff-ci-<run_id>` on the PAT owner's
+#                         account and deletes it during cleanup. Required
+#                         scopes:
+#                           Classic PAT: `repo` + `delete_repo`.
+#                           Fine-grained: Administration R+W, Contents R+W,
+#                                         Metadata R, on "all repositories"
+#                                         (we create new repos each run).
+#                         Use a dedicated bot account if possible — a
+#                         leaked token here can read/write/delete every
+#                         repo on the owning account.
+#
+# Set all three at:
+#   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#
+# Security note on the workflow_dispatch `os` input below: it's a `choice`
+# type restricted to {both, macos, windows} and only used in `if:`
+# expressions (not shell-interpolated), so no injection surface.
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "Which OS to run on"
+        type: choice
+        default: "both"
+        options:
+          - both
+          - macos
+          - windows
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS handoff E2E
+    if: github.event.inputs.os == 'both' || github.event.inputs.os == 'macos'
+    runs-on: macos-14
+    timeout-minutes: 25
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ELNORA_API_KEY: ${{ secrets.ELNORA_API_KEY_TEST }}
+      ELNORA_HANDOFF_MODE: headless
+      # PAT used by Claude in step 6 of INSTALL_FOR_AGENTS.md (headless
+      # branch). The agent pipes this into `gh auth login --with-token`,
+      # then runs `gh repo create` against the PAT owner's account.
+      # Custom name (not GH_TOKEN) so `gh` doesn't auto-detect it before
+      # the agent runs `gh auth login` — we want the test to exercise
+      # the explicit auth path.
+      ELNORA_HANDOFF_GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+      # Deterministic per-run, per-OS repo name: github.run_id is a
+      # monotonic numeric ID assigned by GitHub Actions, so it's
+      # collision-free across reruns and safe to interpolate into shell
+      # (no injection surface — it's not user-controlled). The `-macos`
+      # / `-windows` suffix prevents the two jobs racing to create the
+      # same repo on the same test account.
+      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-macos
+      # Pin to bypass the Elnora installer's api.github.com call for "latest
+      # release". CI runner IP pools routinely exhaust the unauthenticated
+      # 60/hr rate limit, which makes Phase 1 flaky on infra we don't own.
+      # This workflow tests Phase 2 (handoff); Phase 1 install resilience is
+      # tested by install-smoke-test.yml. Bump when cutting a new release.
+      ELNORA_CLI_VERSION: v1.5.0
+      ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}/handoff-transcript.jsonl
+      # Skip VS Code + Obsidian casks. macos-14 runners ship without them, so
+      # brew installs them every run for nothing — the test never opens an
+      # editor or vault. Same flag and rationale as the Windows job below
+      # (and as bootstrap-e2e.yml). Saves ~14s/run on the cask installs.
+      ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify required secrets are present
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "$ELNORA_API_KEY" ]; then
+            echo "::error::ELNORA_API_KEY_TEST secret is not set"
+            exit 1
+          fi
+          if [ -z "$ELNORA_HANDOFF_GH_TOKEN" ]; then
+            echo "::error::PAT_TOKEN_TEST secret is not set"
+            exit 1
+          fi
+          # Quick sanity check on the secret shapes — catches a swapped paste.
+          case "$ANTHROPIC_API_KEY" in
+            sk-ant-*) echo "ANTHROPIC_API_KEY shape OK" ;;
+            *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;;
+          esac
+          case "$ELNORA_API_KEY" in
+            elnora_live_*) echo "ELNORA_API_KEY shape OK" ;;
+            *) echo "::error::ELNORA_API_KEY_TEST does not start with elnora_live_"; exit 1 ;;
+          esac
+          # Both classic (ghp_, gho_, ghu_, ghr_, ghs_) and fine-grained
+          # (github_pat_) PAT prefixes are valid; just sanity-check the prefix.
+          case "$ELNORA_HANDOFF_GH_TOKEN" in
+            ghp_*|gho_*|ghu_*|ghr_*|ghs_*|github_pat_*) echo "PAT_TOKEN_TEST shape OK" ;;
+            *) echo "::error::PAT_TOKEN_TEST does not look like a GitHub PAT (gh[poursr]_* or github_pat_*)"; exit 1 ;;
+          esac
+
+      - name: Pre-set git config (skip Read prompt)
+        run: |
+          git config --global user.name "Handoff E2E"
+          git config --global user.email "handoff-e2e@elnora-starter-kit.test"
+
+      - name: Stage fake Obsidian vault for KB auto-detect
+        run: |
+          mkdir -p "$HOME/Documents/test-vault/.obsidian"
+          echo "# Test vault" > "$HOME/Documents/test-vault/README.md"
+
+      - name: Stage kit into clean dir (mirror customer code path)
+        # install.sh strips tests/ and .github/ before running setup-mac.sh
+        # (install.sh:57). Running setup-mac.sh from the live workspace
+        # checkout instead means the agent sees CI-only files in CWD that
+        # real customers never see — a real test/prod divergence. Stage the
+        # kit into a separate dir without those files so the agent's working
+        # tree matches what install.sh produces. Excludes match install.sh
+        # exactly + .git/ (customers extract from a tarball, no git history).
+        #
+        # Stage into a folder NAMED for $ELNORA_HANDOFF_REPO_NAME (not the
+        # generic "kit"). This forces `basename "$PWD"` to equal the
+        # GitHub repo name the agent will create — the same
+        # local-folder == GitHub-repo invariant install.sh enforces for
+        # real users. The next step asserts the match so a regression
+        # that desyncs them in real use would fail CI.
+        run: |
+          STAGED="${RUNNER_TEMP}/${ELNORA_HANDOFF_REPO_NAME}"
+          rm -rf "$STAGED"
+          mkdir -p "$STAGED"
+          rsync -a \
+            --exclude='.github/' \
+            --exclude='tests/' \
+            --exclude='.git/' \
+            "$GITHUB_WORKSPACE/" "$STAGED/"
+          echo "ELNORA_KIT_DIR=$STAGED" >> "$GITHUB_ENV"
+          ls -la "$STAGED"
+
+      - name: Assert local folder name == GitHub repo name (sync invariant)
+        # The whole point of the workspace-name-sync feature is that the
+        # local folder and the GitHub repo share one name. Real users get
+        # this for free via install.sh's prompt. CI staged the kit at
+        # ${RUNNER_TEMP}/${ELNORA_HANDOFF_REPO_NAME}, so basename matches
+        # by construction — but assert it explicitly so a future change
+        # to the staging path that breaks the invariant fails loudly here
+        # rather than silently shipping a desync.
+        run: |
+          STAGED="${ELNORA_KIT_DIR:-${RUNNER_TEMP}/${ELNORA_HANDOFF_REPO_NAME}}"
+          actual="$(basename "$STAGED")"
+          if [ "$actual" != "$ELNORA_HANDOFF_REPO_NAME" ]; then
+            echo "::error::staging dir basename '$actual' != ELNORA_HANDOFF_REPO_NAME '$ELNORA_HANDOFF_REPO_NAME'"
+            echo "::error::workspace-name-sync invariant broken — local folder must equal GitHub repo name"
+            exit 1
+          fi
+          echo "  [OK] basename($STAGED) == \$ELNORA_HANDOFF_REPO_NAME ($actual)"
+
+      - name: Write integrity marker (mirror install.sh)
+        # install.sh writes .elnora-starter-kit-marker on fresh extract; the
+        # setup script's headless mode now hard-refuses if the marker is
+        # missing. We bypass install.sh in this workflow (rsync from the
+        # workspace), so we have to mint the marker ourselves to match the
+        # real customer code path.
+        run: |
+          STAGED="${ELNORA_KIT_DIR:-${RUNNER_TEMP}/${ELNORA_HANDOFF_REPO_NAME}}"
+          sha=$(shasum -a 256 "$STAGED/INSTALL_FOR_AGENTS.md" | awk '{print $1}')
+          {
+            echo "version: 1"
+            echo "created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "install_for_agents_sha256: $sha"
+          } > "$STAGED/.elnora-starter-kit-marker"
+          echo "  Wrote $STAGED/.elnora-starter-kit-marker (sha256=$sha)"
+
+      - name: Pre-stage .claude/knowledge-base.local.md (no agent writes to .claude/)
+        # The agent in headless mode is NOT allowed to write under .claude/
+        # paths (sensitive-paths guard fires there even with
+        # bypassPermissions). The harness writes the kb config the agent
+        # would otherwise have produced. Mirrors what the user-facing
+        # First-run setup flow ends up with for a real Obsidian vault.
+        # The agent's job becomes: verify this file exists + the path
+        # resolves. See INSTALL_FOR_AGENTS.md "Step 8 (Knowledge base)".
+        env:
+          KIT_DIR: ${{ runner.temp }}/${{ env.ELNORA_HANDOFF_REPO_NAME }}
+          VAULT_HOME: ${{ runner.temp }}
+        run: |
+          mkdir -p "$KIT_DIR/.claude"
+          {
+            echo '---'
+            echo "vault_path: $HOME/Documents/test-vault"
+            echo '---'
+            echo ''
+            echo '# Knowledge Base Settings (headless test harness)'
+          } > "$KIT_DIR/.claude/knowledge-base.local.md"
+          echo "  Wrote $KIT_DIR/.claude/knowledge-base.local.md"
+
+      - name: Pre-clean CLAUDE.md First-run setup block (anchor-pair strip)
+        # Strip the First-run setup block from CLAUDE.md the same way the
+        # agent would: from `### First-run setup` (inclusive) up to but
+        # NOT including `### Reading the config`. With the kb config
+        # pre-staged above, the agent's job is to verify the end state,
+        # not produce it. Heredoc uses single-quoted PY tag so no shell
+        # interpolation happens inside the python block.
+        env:
+          KIT_DIR: ${{ runner.temp }}/${{ env.ELNORA_HANDOFF_REPO_NAME }}
+        run: |
+          python3 - "$KIT_DIR/CLAUDE.md" <<'PY'
+          import sys, pathlib
+          p = pathlib.Path(sys.argv[1])
+          lines = p.read_text().splitlines(keepends=True)
+          start = end = None
+          for n, line in enumerate(lines):
+              if line.rstrip() == "### First-run setup" and start is None:
+                  start = n
+              elif line.rstrip() == "### Reading the config" and end is None:
+                  end = n
+          if start is None or end is None or end <= start:
+              sys.stderr.write(f"CLAUDE.md anchor strip FAILED: anchors={start},{end}\n")
+              sys.exit(1)
+          p.write_text("".join(lines[:start] + lines[end:]))
+          print(f"Stripped CLAUDE.md First-run setup block (lines {start}-{end-1}).")
+          PY
+
+      - name: Run setup-mac.sh in headless handoff mode
+        working-directory: ${{ runner.temp }}/${{ env.ELNORA_HANDOFF_REPO_NAME }}
+        run: |
+          chmod +x setup-mac.sh
+          # The script will: install all tools, then enter headless handoff
+          # mode (because ELNORA_HANDOFF_MODE=headless is in env), invoke
+          # `claude -p` with the production prompt, capture the transcript,
+          # and exit with claude's exit code.
+          bash setup-mac.sh
+
+      - name: Scrub secrets from transcript (PUBLIC REPO defense)
+        # Run BEFORE any step that reads the transcript or uploads it. GitHub
+        # auto-redacts registered secrets in workflow STEP LOGS but NOT in
+        # uploaded ARTIFACT files — and this is a public repo, so artifacts
+        # are publicly downloadable. We rewrite the file in place, replacing
+        # any key-shaped string with ***REDACTED***. Defense in depth on top
+        # of GitHub's own redaction.
+        if: always()
+        run: |
+          if [ ! -f "$ELNORA_HANDOFF_TRANSCRIPT" ]; then
+            echo "(no transcript to scrub)"
+            exit 0
+          fi
+          python3 - "$ELNORA_HANDOFF_TRANSCRIPT" <<'PY'
+          import re, sys, pathlib
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          before = len(s)
+          s = re.sub(r'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***',     s)
+          s = re.sub(r'elnora_live_[A-Za-z0-9_\-]+',      'elnora_live_***REDACTED***', s)
+          s = re.sub(r'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***',         s)
+          s = re.sub(r'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***',  s)
+          p.write_text(s)
+          print(f"Scrubbed transcript: {before} -> {len(s)} bytes")
+          PY
+
+      - name: Show install log (for debugging)
+        if: always()
+        run: |
+          echo "=== ~/claude-starter-install.log (tail) ==="
+          tail -200 "$HOME/claude-starter-install.log" 2>/dev/null || echo "(log not produced)"
+
+      - name: Show handoff transcript (tail, scrubbed)
+        if: always()
+        run: |
+          echo "=== handoff-transcript.jsonl (last 50 lines, post-scrub) ==="
+          tail -50 "$ELNORA_HANDOFF_TRANSCRIPT" 2>/dev/null || echo "(transcript not produced)"
+
+      - name: Run post-state assertions
+        if: always()
+        env:
+          # Pass the PAT through so `gh repo view` in assert.sh can read
+          # the test repo's visibility. Without this, gh has no auth
+          # context (the agent's `gh auth login --with-token` happened in
+          # a subprocess whose persisted hosts.yml may not be visible
+          # here) and the visibility check returns <unreachable>.
+          GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+          # The "Stage fake Obsidian vault" step above DID stage a vault, so
+          # the agent is expected to replace the placeholder in
+          # knowledge-base.local.md. Setting this flag tells assert.sh to
+          # enforce the replacement; without it the check soft-skips
+          # (intended for a future no-vault variant of the test).
+          KB_STAGED: "1"
+          # Step 11 cleanup deletes INSTALL_FOR_AGENTS.md from the staged
+          # kit, but the hardening regression check still needs to read
+          # the doc to scan for re-introduced sensitive-paths bypasses.
+          # Point assert.sh at the original workspace checkout (untouched
+          # by Phase 2) so the regression check has a stable source.
+          # github.workspace is a runner-set context value (the path to
+          # the checkout), not user-controlled input — safe to interpolate.
+          ELNORA_KIT_SOURCE_DIR: ${{ github.workspace }}
+        run: |
+          chmod +x tests/handoff/assert.sh
+          # assert.sh runs from the workspace (where tests/ lives), pointed
+          # at the staged kit (where setup-mac.sh ran and CLAUDE.md/.git
+          # were created). Falls back to $PWD on the off chance the staging
+          # step was skipped, so this stays valid in older branches.
+          tests/handoff/assert.sh "${ELNORA_KIT_DIR:-$PWD}" "$ELNORA_HANDOFF_TRANSCRIPT"
+
+      - name: Clean up test GitHub repo
+        # Always runs — even when assertions fail or the agent crashed
+        # mid-flow — so we never leave orphan repos cluttering the test
+        # account. Tolerates the "repo never got created" case quietly.
+        if: always()
+        env:
+          # Reuse the same PAT for cleanup. `gh` reads GH_TOKEN
+          # automatically, no need for `gh auth login` here.
+          GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+        run: |
+          if [ -z "${ELNORA_HANDOFF_REPO_NAME:-}" ]; then
+            echo "ELNORA_HANDOFF_REPO_NAME unset; nothing to clean up"
+            exit 0
+          fi
+          OWNER=$(gh api user --jq .login 2>/dev/null || echo "")
+          if [ -z "$OWNER" ]; then
+            echo "Could not resolve PAT owner via gh api user; skipping cleanup"
+            exit 0
+          fi
+          echo "Attempting to delete $OWNER/$ELNORA_HANDOFF_REPO_NAME"
+          # `gh repo delete --yes` exits non-zero if the repo doesn't exist;
+          # that's fine in cleanup — swallow it.
+          gh repo delete "$OWNER/$ELNORA_HANDOFF_REPO_NAME" --yes 2>&1 || \
+            echo "(repo did not exist or delete failed; continuing)"
+
+      - name: Upload transcript as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: handoff-transcript-macos
+          path: ${{ env.ELNORA_HANDOFF_TRANSCRIPT }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  windows:
+    name: Windows handoff E2E
+    if: github.event.inputs.os == 'both' || github.event.inputs.os == 'windows'
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ELNORA_API_KEY: ${{ secrets.ELNORA_API_KEY_TEST }}
+      ELNORA_HANDOFF_MODE: headless
+      # See macOS job for why this exists and why it's NOT named GH_TOKEN.
+      ELNORA_HANDOFF_GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+      # See macOS job for the rationale on why repo name includes the
+      # OS suffix — the two jobs would otherwise race for the same name.
+      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-windows
+      # Pin to bypass the Elnora installer's api.github.com call for "latest
+      # release". CI runner IP pools routinely exhaust the unauthenticated
+      # 60/hr rate limit, which makes Phase 1 flaky on infra we don't own.
+      # This workflow tests Phase 2 (handoff); Phase 1 install resilience is
+      # tested by install-smoke-test.yml. Bump when cutting a new release.
+      ELNORA_CLI_VERSION: v1.5.0
+      ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}\handoff-transcript.jsonl
+      # Same rationale as install-smoke-test.yml — windows-2022 has no winget.
+      ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify required secrets are present
+        shell: pwsh
+        run: |
+          if (-not $env:ANTHROPIC_API_KEY) {
+            Write-Host "::error::ANTHROPIC_API_KEY secret is not set"
+            exit 1
+          }
+          if (-not $env:ELNORA_API_KEY) {
+            Write-Host "::error::ELNORA_API_KEY_TEST secret is not set"
+            exit 1
+          }
+          if (-not $env:ELNORA_HANDOFF_GH_TOKEN) {
+            Write-Host "::error::PAT_TOKEN_TEST secret is not set"
+            exit 1
+          }
+          if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*") {
+            Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"
+            exit 1
+          }
+          if ($env:ELNORA_API_KEY -notlike "elnora_live_*") {
+            Write-Host "::error::ELNORA_API_KEY_TEST does not start with elnora_live_"
+            exit 1
+          }
+          $patOK = $env:ELNORA_HANDOFF_GH_TOKEN -match '^(ghp_|gho_|ghu_|ghr_|ghs_|github_pat_)'
+          if (-not $patOK) {
+            Write-Host "::error::PAT_TOKEN_TEST does not look like a GitHub PAT (gh[poursr]_* or github_pat_*)"
+            exit 1
+          }
+          Write-Host "Secret shapes OK"
+
+      - name: Pre-set git config (skip Read prompt)
+        shell: pwsh
+        run: |
+          git config --global user.name "Handoff E2E"
+          git config --global user.email "handoff-e2e@elnora-starter-kit.test"
+
+      - name: Stage fake Obsidian vault for KB auto-detect
+        shell: pwsh
+        run: |
+          $vault = Join-Path $env:USERPROFILE "Documents\test-vault\.obsidian"
+          New-Item -ItemType Directory -Force -Path $vault | Out-Null
+          Set-Content -Path (Join-Path $env:USERPROFILE "Documents\test-vault\README.md") -Value "# Test vault"
+
+      - name: Stage kit into clean dir (mirror customer code path)
+        # See matching comment in the macOS job above. install.ps1 strips
+        # tests/ and .github/ before running setup-windows.ps1
+        # (install.ps1:96-97). We mirror that here so the agent's CWD
+        # matches what real customers see.
+        #
+        # Stage into a folder NAMED for $ELNORA_HANDOFF_REPO_NAME (not the
+        # generic "kit"). This forces basename of the staged dir to equal
+        # the GitHub repo name the agent will create — the same
+        # local-folder == GitHub-repo invariant install.ps1 enforces for
+        # real users. The next step asserts the match so a regression
+        # that desyncs them in real use would fail CI.
+        shell: pwsh
+        run: |
+          $staged = Join-Path $env:RUNNER_TEMP $env:ELNORA_HANDOFF_REPO_NAME
+          if (Test-Path $staged) { Remove-Item $staged -Recurse -Force }
+          New-Item -ItemType Directory -Path $staged | Out-Null
+          # Robocopy is the standard Windows mirror tool. /MIR mirrors the
+          # tree; /XD excludes directories by name. Robocopy exit codes:
+          # 0-7 = success (1 = files copied, 2 = extra files in dest, etc.);
+          # 8+ = failure. PowerShell sees any non-zero $LASTEXITCODE as a
+          # red error in the log even though it's actually success — clear
+          # it so this step doesn't go red on a normal exit code 1.
+          robocopy $env:GITHUB_WORKSPACE $staged /MIR /XD .github tests .git /NFL /NDL /NJH /NJS /NP
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $global:LASTEXITCODE = 0
+          "ELNORA_KIT_DIR=$staged" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-ChildItem $staged | Format-Table Name, Length
+
+      - name: Assert local folder name == GitHub repo name (sync invariant)
+        # See matching macOS step. The whole point of the workspace-name
+        # -sync feature is that the local folder and the GitHub repo share
+        # one name. Real users get this for free via install.ps1's prompt.
+        # CI staged the kit at $env:RUNNER_TEMP\$env:ELNORA_HANDOFF_REPO_NAME,
+        # so basename matches by construction — assert it explicitly so a
+        # future change to the staging path that breaks the invariant
+        # fails loudly here rather than silently shipping a desync.
+        shell: pwsh
+        run: |
+          $staged = if ($env:ELNORA_KIT_DIR) { $env:ELNORA_KIT_DIR } else { Join-Path $env:RUNNER_TEMP $env:ELNORA_HANDOFF_REPO_NAME }
+          $actual = Split-Path -Leaf $staged
+          if ($actual -ne $env:ELNORA_HANDOFF_REPO_NAME) {
+            Write-Host "::error::staging dir basename '$actual' != ELNORA_HANDOFF_REPO_NAME '$env:ELNORA_HANDOFF_REPO_NAME'"
+            Write-Host "::error::workspace-name-sync invariant broken — local folder must equal GitHub repo name"
+            exit 1
+          }
+          Write-Host "  [OK] basename($staged) == `$ELNORA_HANDOFF_REPO_NAME ($actual)"
+
+      - name: Write integrity marker (mirror install.ps1)
+        # install.ps1 writes .elnora-starter-kit-marker on fresh extract; the
+        # setup script's headless mode now hard-refuses if the marker is
+        # missing. We bypass install.ps1 in this workflow (robocopy from the
+        # workspace), so we have to mint the marker ourselves to match the
+        # real customer code path.
+        shell: pwsh
+        run: |
+          $staged = Join-Path $env:RUNNER_TEMP $env:ELNORA_HANDOFF_REPO_NAME
+          $docPath = Join-Path $staged "INSTALL_FOR_AGENTS.md"
+          $hash = (Get-FileHash -Path $docPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $now = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $markerPath = Join-Path $staged ".elnora-starter-kit-marker"
+          $content = "version: 1`ncreated: $now`ninstall_for_agents_sha256: $hash`n"
+          [System.IO.File]::WriteAllText($markerPath, $content, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "  Wrote $markerPath (sha256=$hash)"
+
+      - name: Pre-stage .claude/knowledge-base.local.md (no agent writes to .claude/)
+        # The agent in headless mode is NOT allowed to write under .claude/
+        # paths. The harness writes the kb config the agent would otherwise
+        # have produced. Mirrors what the user-facing First-run setup flow
+        # ends up with for a real Obsidian vault. Agent's job becomes
+        # verify-only. See INSTALL_FOR_AGENTS.md "Step 8 (Knowledge base)".
+        shell: pwsh
+        run: |
+          $staged = Join-Path $env:RUNNER_TEMP $env:ELNORA_HANDOFF_REPO_NAME
+          $claudeDir = Join-Path $staged ".claude"
+          New-Item -ItemType Directory -Force -Path $claudeDir | Out-Null
+          # Use forward slashes in vault_path even on Windows — the kb
+          # config doc says they work everywhere and avoid YAML escaping.
+          $vaultPath = ($env:USERPROFILE -replace '\\','/') + "/Documents/test-vault"
+          $kbContent = "---`nvault_path: $vaultPath`n---`n`n# Knowledge Base Settings (headless test harness)`n"
+          $kbPath = Join-Path $claudeDir "knowledge-base.local.md"
+          [System.IO.File]::WriteAllText($kbPath, $kbContent, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "  Wrote $kbPath"
+
+      - name: Pre-clean CLAUDE.md First-run setup block (anchor-pair strip)
+        # Strip the First-run setup block from CLAUDE.md the same way the
+        # agent would: from `### First-run setup` (inclusive) up to but
+        # NOT including `### Reading the config`. With the kb config
+        # pre-staged above, the agent's job is to verify the end state,
+        # not produce it.
+        shell: pwsh
+        run: |
+          $staged = Join-Path $env:RUNNER_TEMP $env:ELNORA_HANDOFF_REPO_NAME
+          $claudeMd = Join-Path $staged "CLAUDE.md"
+          $lines = Get-Content -LiteralPath $claudeMd
+          $startIdx = $null
+          $endIdx = $null
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+              $trimmed = $lines[$i].TrimEnd()
+              if ($trimmed -eq "### First-run setup" -and $null -eq $startIdx) {
+                  $startIdx = $i
+              } elseif ($trimmed -eq "### Reading the config" -and $null -eq $endIdx) {
+                  $endIdx = $i
+              }
+          }
+          if ($null -eq $startIdx -or $null -eq $endIdx -or $endIdx -le $startIdx) {
+              Write-Host "::error::CLAUDE.md anchor strip FAILED: anchors=$startIdx,$endIdx"
+              exit 1
+          }
+          $kept = @()
+          if ($startIdx -gt 0) { $kept += $lines[0..($startIdx - 1)] }
+          $kept += $lines[$endIdx..($lines.Count - 1)]
+          [System.IO.File]::WriteAllLines($claudeMd, $kept, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "Stripped CLAUDE.md First-run setup block (lines $startIdx-$($endIdx - 1))."
+
+      - name: Run setup-windows.ps1 in headless handoff mode
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/${{ env.ELNORA_HANDOFF_REPO_NAME }}
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          .\setup-windows.ps1
+
+      - name: Scrub secrets from transcript (PUBLIC REPO defense)
+        # See matching comment in the macOS job above.
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:ELNORA_HANDOFF_TRANSCRIPT)) {
+            Write-Host "(no transcript to scrub)"
+            exit 0
+          }
+          $s = Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Raw
+          $before = $s.Length
+          $s = [regex]::Replace($s, 'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***')
+          $s = [regex]::Replace($s, 'elnora_live_[A-Za-z0-9_\-]+',      'elnora_live_***REDACTED***')
+          $s = [regex]::Replace($s, 'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***')
+          $s = [regex]::Replace($s, 'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***')
+          Set-Content -Path $env:ELNORA_HANDOFF_TRANSCRIPT -Value $s -NoNewline
+          Write-Host "Scrubbed transcript: $before -> $($s.Length) bytes"
+
+      - name: Show install log (for debugging)
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "=== claude-starter-install.log (tail) ==="
+          $log = "$env:USERPROFILE\claude-starter-install.log"
+          if (Test-Path $log) {
+            Get-Content $log -Tail 200
+          } else {
+            Write-Host "(log not produced)"
+          }
+
+      - name: Show handoff transcript (tail, scrubbed)
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "=== handoff-transcript.jsonl (last 50 lines, post-scrub) ==="
+          if (Test-Path $env:ELNORA_HANDOFF_TRANSCRIPT) {
+            Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Tail 50
+          } else {
+            Write-Host "(transcript not produced)"
+          }
+
+      - name: Run post-state assertions
+        if: always()
+        shell: pwsh
+        env:
+          # See matching comment in macOS job — give assert.ps1's
+          # `gh repo view` a token to read the test repo's visibility.
+          GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+          # The "Stage fake Obsidian vault" step above DID stage a vault;
+          # tell assert.ps1 to enforce the placeholder-replacement check.
+          KB_STAGED: "1"
+          # Step 11 cleanup deletes INSTALL_FOR_AGENTS.md from the staged
+          # kit. Point assert.ps1 at the original workspace checkout
+          # (untouched by Phase 2) so the hardening regression check has
+          # a stable source. github.workspace is a runner-set context
+          # value (the path to the checkout), not user-controlled input.
+          ELNORA_KIT_SOURCE_DIR: ${{ github.workspace }}
+        run: |
+          # assert.ps1 runs from the workspace (where tests/ lives), pointed
+          # at the staged kit (where setup-windows.ps1 ran and CLAUDE.md/.git
+          # were created). Falls back to $PWD if staging was skipped.
+          $repoDir = if ($env:ELNORA_KIT_DIR) { $env:ELNORA_KIT_DIR } else { "$PWD" }
+          .\tests\handoff\assert.ps1 -RepoDir $repoDir -Transcript $env:ELNORA_HANDOFF_TRANSCRIPT
+
+      - name: Clean up test GitHub repo
+        # See matching step in macOS job. Always runs so we never leave
+        # orphan repos cluttering the test account.
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
+        run: |
+          if (-not $env:ELNORA_HANDOFF_REPO_NAME) {
+            Write-Host "ELNORA_HANDOFF_REPO_NAME unset; nothing to clean up"
+            exit 0
+          }
+          $owner = (gh api user --jq .login 2>$null)
+          if (-not $owner) {
+            Write-Host "Could not resolve PAT owner via gh api user; skipping cleanup"
+            exit 0
+          }
+          Write-Host "Attempting to delete $owner/$env:ELNORA_HANDOFF_REPO_NAME"
+          gh repo delete "$owner/$env:ELNORA_HANDOFF_REPO_NAME" --yes 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "(repo did not exist or delete failed; continuing)"
+          }
+          $global:LASTEXITCODE = 0
+
+      - name: Upload transcript as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: handoff-transcript-windows
+          path: ${{ env.ELNORA_HANDOFF_TRANSCRIPT }}
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,37 @@
+// Auto-fires once on first folder open after `setup-mac.sh` /
+// `setup-windows.ps1` finishes Phase 1. The setup script writes the sentinel
+// `.vscode/.handoff-pending` containing the handoff prompt, then opens VS
+// Code at this folder. The helper script consumes the sentinel and exec's
+// `claude` inside VS Code's integrated terminal. On subsequent folder-opens
+// (sentinel absent) the helper exits silently.
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Continue Elnora setup with Claude",
+      "type": "shell",
+      "command": "bash",
+      "args": ["${workspaceFolder}/.vscode/run-handoff.sh"],
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy", "Bypass",
+          "-File", "${workspaceFolder}\\.vscode\\run-handoff.ps1"
+        ]
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false,
+        "echo": false
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    }
+  ]
+}

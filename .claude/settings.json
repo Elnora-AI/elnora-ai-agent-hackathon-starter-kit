@@ -1,0 +1,99 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_NO_FLICKER": "1"
+  },
+  "autoUpdatesChannel": "latest",
+  "remoteControlAtStartup": true,
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "NotebookEdit",
+      "Monitor",
+      "Bash",
+      "mcp__context7__*",
+      "mcp__grep__*",
+      "mcp__elnora__*",
+      "mcp__chrome-devtools__*"
+    ],
+    "deny": [
+      "Bash(git push --force)",
+      "Bash(git push --force *)",
+      "Bash(git push -f)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git clean -fd*)",
+
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/*)",
+      "Bash(rm -rf $HOME*)",
+
+      "Bash(sudo *)",
+
+      "Bash(shutdown*)",
+      "Bash(reboot*)",
+      "Bash(halt*)"
+    ]
+  },
+  "hooks": {},
+  "enabledPlugins": {
+    "elnora@elnora-plugins": true,
+    "commit-commands@claude-code-plugins": true,
+    "context7@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-plugins": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-code.git"
+      },
+      "autoUpdate": true
+    },
+    "claude-code-workflows": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/wshobson/agents.git"
+      },
+      "autoUpdate": true
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-plugins-official.git"
+      },
+      "autoUpdate": true
+    },
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/skills.git"
+      },
+      "autoUpdate": true
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/knowledge-work-plugins.git"
+      },
+      "autoUpdate": true
+    },
+    "elnora-plugins": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/Elnora-AI/elnora-plugins.git"
+      },
+      "autoUpdate": true
+    }
+  }
+}
