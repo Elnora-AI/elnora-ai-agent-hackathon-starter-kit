@@ -71,7 +71,11 @@ function Test-Checkpoint {
 function Set-Checkpoint {
     param([string]$Name)
     if (-not (Test-Checkpoint $Name)) {
-        try { Add-Content -LiteralPath $SetupStateFile -Value $Name -ErrorAction SilentlyContinue } catch { }
+        try {
+            Add-Content -LiteralPath $SetupStateFile -Value $Name -ErrorAction Stop
+        } catch {
+            Write-Host "  [WARN] Could not write checkpoint '$Name' to $SetupStateFile - a re-run will repeat this step instead of resuming past it." -ForegroundColor Yellow
+        }
     }
 }
 
@@ -1702,7 +1706,16 @@ if ($agentAvailable) {
             $rc = $LASTEXITCODE
         }
         Write-Host ""
-        Write-Host "$agentName handoff exited with code $rc (transcript saved to $transcript)" -ForegroundColor Cyan
+        # An empty/missing transcript means the agent died before emitting a
+        # single event (auth failure, crash on startup) - that must read as a
+        # FAILED: marker in the install log, not as a quiet success line.
+        if ((Test-Path -LiteralPath $transcript) -and ((Get-Item -LiteralPath $transcript).Length -gt 0)) {
+            $transcriptEvents = @(Get-Content -LiteralPath $transcript).Count
+            Write-Host "$agentName handoff exited with code $rc (transcript saved to $transcript, $transcriptEvents events)" -ForegroundColor Cyan
+        } else {
+            Write-Host "FAILED: $agentName handoff produced no transcript at $transcript (exit $rc) - the agent likely crashed before emitting output; check the lines above for auth or network errors." -ForegroundColor Red
+            if ($rc -eq 0) { $rc = 1 }
+        }
         exit $rc
     }
 

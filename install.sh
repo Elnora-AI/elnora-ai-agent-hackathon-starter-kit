@@ -444,7 +444,8 @@ cd "$TARGET_DIR"
 # Now the next re-run can offer to resume THIS folder instead of asking for a
 # name and spawning a sibling. Best-effort: a registry write failure must never
 # abort an otherwise-good install.
-registry_record "$WORKSPACE_NAME" "$TARGET_DIR" || true
+registry_record "$WORKSPACE_NAME" "$TARGET_DIR" || \
+    echo "[WARN] Could not record this workspace in $REGISTRY_FILE - the next re-run won't offer to resume this folder and may create a sibling copy." >&2
 
 # Write a marker file recording the SHA256 of INSTALL_FOR_AGENTS.md as it was
 # extracted from GitHub. setup-mac.sh verifies this hash before handing off to

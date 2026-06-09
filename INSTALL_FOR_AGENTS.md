@@ -45,6 +45,16 @@ tool, substitute the Codex equivalent from this table:
 | Agent settings file | `.claude/settings.json` | `~/.codex/config.toml` |
 | Project instructions (auto-read) | `CLAUDE.md` | `AGENTS.md` (already present at the repo root) |
 
+**Which shell dialect to use.** Pick by your SHELL TOOL, not by the OS:
+
+- **Claude Code's `Bash` tool runs bash on every OS — including Windows**
+  (Git Bash). Always use the bash forms of commands in this doc, even on a
+  Windows machine. Running the "(On Windows: ...)" PowerShell variants
+  through the `Bash` tool fails with `command not found` / syntax errors
+  and wastes turns.
+- **Codex on Windows runs PowerShell** — there (and only there) use the
+  "(On Windows: ...)" variants. Codex on macOS/Linux uses the bash forms.
+
 Two Claude-only notes that do **not** apply to Codex:
 
 - **The "sensitive-paths guard" on `.claude/` paths.** That is a Claude Code
@@ -141,11 +151,10 @@ mode, follow these adjustments:
        starting at `### First-run setup` (inclusive) up to but **not
        including** `### Reading the config`, and `new_string` set to
        `""` (empty).
-    3. Verify with one `Bash` call using `;` (NOT `&&`) between the greps:
-       `grep -c '### First-run setup' CLAUDE.md ; grep -c '### Reading the config' CLAUDE.md`
-       must print `0` then `1`. **Don't chain with `&&`** — `grep -c` returns
-       exit 1 when the count is 0, which short-circuits `&&` and skips the
-       second grep, costing you a wasted retry turn. Also: on Windows, pass
+    3. Verify with one `Bash` call (this form always exits 0 — `grep -c`
+       exits 1 on a zero count and gets flagged as a tool error):
+       `awk '/^### First-run setup$/{a++} /^### Reading the config$/{b++} END{print "first_run=" a+0 " reading_config=" b+0}' CLAUDE.md`
+       must print `first_run=0 reading_config=1`. Also: on Windows, pass
        paths as `CLAUDE.md` (relative) or `'C:/Users/.../CLAUDE.md'`
        (forward slashes, single-quoted) — backslashes get eaten by Git Bash
        as escape sequences (`\U`, `\D`, `\e` …) and grep will report
@@ -253,7 +262,8 @@ mode, follow these adjustments:
   3. `.claude/knowledge-base.local.md` exists; its `vault_path:` value is
      a real directory (not the `<ABSOLUTE_PATH_TO_YOUR_VAULT>` placeholder).
   4. `CLAUDE.md` no longer contains the `### First-run setup` heading or
-     its body (`grep -c '### First-run setup' CLAUDE.md` should print `0`).
+     its body (`awk '/### First-run setup/{n++} END{print n+0}' CLAUDE.md`
+     should print `0`; don't use `grep -c` — it exits 1 on a zero count).
   5. Step 9 cleanup ran: none of `install.sh`, `install.ps1`,
      `setup-mac.sh`, `setup-windows.ps1`, `INSTALL_FOR_AGENTS.md`,
      `RECOVERY.md`, `.elnora-ai-agent-hackathon-starter-kit-marker` exist on disk; `.vscode/`
@@ -282,10 +292,13 @@ asked us to resume. This marker is written by step 3c.2's collision
 recovery flow when a GitHub-name collision forces a folder rename.
 
 ```
-test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
+ls .elnora-handoff-resume.json 2>/dev/null; echo "--- (filename above = RESUME, nothing above = FRESH)"
 ```
 
-(On Windows: `if (Test-Path .elnora-handoff-resume.json) { 'RESUME' } else { 'FRESH' }`.)
+Run it exactly as written — no `&&`/`||` chains (a non-zero segment exit
+gets flagged as a tool error and wastes a retry turn; this form always
+exits 0). (PowerShell shells only — see the shell-dialect note above:
+`if (Test-Path .elnora-handoff-resume.json) { 'RESUME' } else { 'FRESH' }`.)
 
 - **`FRESH`** (the marker doesn't exist) → this is a normal Phase 2
   run. Proceed to step 1 below.
@@ -358,16 +371,17 @@ test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
 ### 1. Read the install log
 
 ```
-grep -cE "FAILED:|^error:" ~/claude-starter-install.log; tail -30 ~/claude-starter-install.log
+awk '/FAILED:|^error:/{n++} END{print "failure_count=" n+0}' ~/claude-starter-install.log; tail -30 ~/claude-starter-install.log
 ```
 
-The first number printed is the failure count — `0` means clean; anything
-higher means failures to triage. Run it exactly as written (one line,
-semicolon-joined). Don't append `|| echo ...` / `&& ...` fallbacks: in CI
-harnesses the chained form has returned a bare "Exit code 1" with no
-output, which costs retry turns for nothing.
+`failure_count=0` means clean; anything higher means failures to triage.
+Run it exactly as written (one line, semicolon-joined). Don't substitute
+`grep -c` (it exits 1 when the count is 0) and don't append `|| echo` /
+`&& ...` fallbacks — any non-zero segment exit gets flagged as a tool
+error and wastes retry turns. The awk form always exits 0.
 
-(On Windows: `(Select-String -Pattern "FAILED:|^error:" $env:USERPROFILE\claude-starter-install.log | Measure-Object).Count` then `Get-Content $env:USERPROFILE\claude-starter-install.log -Tail 30`.)
+(PowerShell shells only — see the shell-dialect note above:
+`(Select-String -Pattern "FAILED:|^error:" $env:USERPROFILE\claude-starter-install.log | Measure-Object).Count` then `Get-Content $env:USERPROFILE\claude-starter-install.log -Tail 30`.)
 
 > **Do NOT use the Read tool on the install log, and do NOT `tail -100`
 > the whole thing either.** On macOS the log carries Homebrew bottle-pour
@@ -756,10 +770,10 @@ now? It's the recommended way to keep notes that I can read."**
      `python3` write gives the agent a generic file-mutation primitive
      that bypasses tool-level guards). If either anchor isn't found,
      stop and report it — do not silently proceed. After the edit,
-     verify with one `Bash` call using `;` (NOT `&&`):
-     `grep -c '### First-run setup' CLAUDE.md ; grep -c '### Reading the config' CLAUDE.md`
-     (must print `0` then `1`). `&&` would short-circuit when the first
-     grep returns 0 occurrences (exit 1) and skip the second check.
+     verify with one `Bash` call (always exits 0; `grep -c` exits 1 on a
+     zero count and gets flagged as a tool error):
+     `awk '/^### First-run setup$/{a++} /^### Reading the config$/{b++} END{print "first_run=" a+0 " reading_config=" b+0}' CLAUDE.md`
+     (must print `first_run=0 reading_config=1`).
      Headless mode uses the exact same approach (see Step 4 in
      the headless-mode block at the top of this file).
 - **No, skip** → tell the user "No problem. Whenever you want to set this up

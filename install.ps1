@@ -462,7 +462,11 @@ Set-Location $TargetDir
 # to resume THIS folder instead of asking for a name and spawning a sibling.
 # Best-effort: a registry write failure must never abort an otherwise-good
 # install.
-try { Set-RegistryEntry -Name $WorkspaceName -Path $TargetDir } catch { }
+try {
+    Set-RegistryEntry -Name $WorkspaceName -Path $TargetDir
+} catch {
+    Write-Host "[WARN] Could not record this workspace in $RegistryFile - the next re-run won't offer to resume this folder and may create a sibling copy." -ForegroundColor Yellow
+}
 
 # Strip dev/CI scaffolding the customer can't use anyway. tests/handoff/ exists
 # for our CI assertions; .github/ holds workflows + dependabot config that only
