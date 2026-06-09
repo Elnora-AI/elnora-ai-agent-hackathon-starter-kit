@@ -1,8 +1,9 @@
 # Elnora AI Agent Hackathon Starter Kit
 
-One-command setup that installs and wires together Claude Code and the
-supporting dev tools (Python, Node.js, Git, GitHub CLI, VS Code, Obsidian) you
-need to build AI agents from the terminal.
+One-command setup that installs and wires together your coding agent — **Claude
+Code or Codex** (your choice) — and the supporting dev tools (Python, Node.js,
+Git, GitHub CLI, VS Code, Obsidian) you need to build AI agents from the
+terminal.
 
 Built for the **Elnora & EFS AI hackathon workshop**: run one command and you're
 at a working agent environment in 15–25 minutes, no setup rabbit holes — so you
@@ -11,17 +12,21 @@ spend the workshop building your agent, not fighting installers.
 ## Who this is for
 
 **Hackathon participants** who want the fastest path from a fresh laptop to a
-working Claude Code environment, without chasing installers or learning what
-`brew` is on day one.
+working Claude Code or Codex environment, without chasing installers or learning
+what `brew` is on day one.
 
-Also a useful starting point for anyone bootstrapping a Claude Code project,
-validating an existing setup, or using this as a template to build their own
-agents and plugins.
+Also a useful starting point for anyone bootstrapping a Claude Code or Codex
+project, validating an existing setup, or using this as a template to build
+their own agents and plugins.
 
 ## Requirements
 
 - macOS or Windows 10/11 with admin rights (Homebrew or WinGet need them).
-- Active [Claude Pro or Max](https://claude.com/upgrade) subscription.
+- A plan or API key for the agent you pick:
+  - **Claude Code** — an active [Claude Pro or Max](https://claude.com/upgrade)
+    subscription (or an Anthropic API key).
+  - **Codex** — an active [ChatGPT Plus/Pro](https://chatgpt.com) plan (or an
+    OpenAI API key).
 - [GitHub account](https://github.com/signup), used in Phase 2 to create your private repo.
 
 ## Install
@@ -42,12 +47,14 @@ Runtime is 15–25 minutes on a fresh machine, faster on re-runs.
 
 A few things to expect:
 
+- It first asks which agent you want: **Claude Code, Codex, or both.** (Pick
+  "both" and it installs both, then asks which one finishes setup right now.)
 - macOS will prompt for your Mac login password (Homebrew). No characters appear as you type. Normal.
-- A browser opens to sign into Claude Pro/Max. Sign in, then return to the terminal.
-- Claude takes over and finishes Phase 2 setup.
+- A browser opens to sign into your agent (Claude Pro/Max, or ChatGPT for Codex). Sign in, then return to the terminal.
+- Your agent takes over and finishes Phase 2 setup.
 
-The script downloads installers from `raw.githubusercontent.com` and
-`claude.ai` over HTTPS without separate checksum verification. Running it
+The script downloads installers from `raw.githubusercontent.com`, `claude.ai`,
+and `chatgpt.com` over HTTPS without separate checksum verification. Running it
 means trusting those sources.
 
 ## If it stops, just run it again
@@ -79,13 +86,14 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 
 ## What happens
 
-1. **Phase 1 install (~5–10 min):** prompts for a name for your workspace
-   (used for both the local folder and the GitHub repo we'll create later),
-   clones the repo to `~/Documents/<your-name>/`, and installs Claude Code,
-   Node.js, Git, Python, VS Code, GitHub CLI, and Obsidian. Existing installs
-   are skipped. Output goes to `~/claude-starter-install.log`.
-2. **Auth:** Claude Pro/Max (required), GitHub CLI (skippable).
-3. **Phase 2 handoff (~3–5 min):** Claude verifies versions, creates your
+1. **Phase 1 install (~5–10 min):** asks which agent you want (Claude Code /
+   Codex / both) and a name for your workspace (used for both the local folder
+   and the GitHub repo we'll create later), clones the repo to
+   `~/Documents/<your-name>/`, and installs your chosen agent(s) plus Node.js,
+   Git, Python, VS Code, GitHub CLI, and Obsidian. Existing installs are
+   skipped. Output goes to `~/claude-starter-install.log`.
+2. **Auth:** your agent (required), GitHub CLI (skippable).
+3. **Phase 2 handoff (~3–5 min):** your agent verifies versions, creates your
    **private GitHub repo**, pushes the kit to it, runs a smoke test, and
    optionally configures a knowledge base.
 
@@ -93,10 +101,10 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 
 | Tool | Role |
 |------|------|
-| Claude Code | Orchestrating agent. Your interface. |
+| Claude Code and/or Codex | Orchestrating agent. Your interface. (You pick at install time.) |
 | Python 3, Node.js | Runtimes for plugins, MCP servers, scripts. |
 | Git, GitHub CLI | Version control and Phase 2 repo creation. |
-| VS Code | Editor for files Claude produces. |
+| VS Code | Editor for files your agent produces. |
 | Obsidian | Markdown knowledge-base viewer. |
 
 ## Repository layout
@@ -104,9 +112,10 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 ```
 <your-workspace>/                          # e.g. carmen-agents, set during install
 ├── README.md                              # This file
-├── INSTALL_FOR_AGENTS.md                  # Phase 2 sequence executed by Claude
+├── INSTALL_FOR_AGENTS.md                  # Phase 2 sequence executed by your agent
 ├── RECOVERY.md                            # Failure modes and remediation steps
-├── CLAUDE.md                              # Project instructions loaded by Claude
+├── CLAUDE.md                              # Project instructions (Claude Code reads this)
+├── AGENTS.md                              # Project instructions (Codex reads this)
 ├── TOOLS.md                               # Installed tools, plugins, and integrations
 ├── marketplace-plugins.md                 # Recommended plugin marketplaces
 ├── install.sh / install.ps1               # Bootstrap entry points
