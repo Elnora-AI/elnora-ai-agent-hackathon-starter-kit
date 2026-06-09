@@ -312,28 +312,57 @@ if ! xcode-select -p &>/dev/null; then
     exit 1
 fi
 
-# --- [1/9] Claude Code CLI (installed FIRST - zero dependencies) ---
-# Using Anthropic's native installer rather than the brew cask so Claude Code
-# is the very first thing on the machine. Works before brew exists, writes a
-# self-contained binary to ~/.local/bin/claude, and auto-updates itself.
-if ! command -v claude &> /dev/null; then
-    echo "[1/9] Installing Claude Code..."
-    echo "  Using Anthropic's native installer (no prerequisites required)."
-    # `set -o pipefail` - without it, a failed curl (404, DNS, network hiccup)
-    # would send empty stdin to bash, which then exits 0 and the whole step
-    # looks like a silent success. pipefail propagates curl's non-zero exit
-    # through the pipe so run_step can catch and remediate it.
-    if run_step "Claude Code" /bin/bash -c "set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash"; then
-        # Make `claude` visible in THIS shell without requiring a new terminal.
-        # We also call persist_local_bin_path below to ensure future shells
-        # (new Terminal windows, VS Code's integrated terminal) inherit the
-        # PATH entry -- the Anthropic installer's own shell-profile update is
-        # unreliable on re-runs (see persist_local_bin_path comment).
-        export PATH="$HOME/.local/bin:$PATH"
-        echo "  Done. Version: $(claude --version 2>/dev/null || echo 'installed - restart terminal')"
-    fi
+# --- Coding agent selection (set by install.sh; default to claude) ---
+# $ELNORA_AGENT is claude | codex | both. $ELNORA_HANDOFF_AGENT (claude | codex)
+# is the one that finishes Phase 2. A direct `bash setup-mac.sh` run (no
+# install.sh) defaults to claude so existing muscle memory still works.
+ELNORA_AGENT="$(printf '%s' "${ELNORA_AGENT:-claude}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+case "$ELNORA_AGENT" in claude|codex|both) ;; *) ELNORA_AGENT="claude" ;; esac
+if [ "$ELNORA_AGENT" = "both" ]; then
+    ELNORA_HANDOFF_AGENT="$(printf '%s' "${ELNORA_HANDOFF_AGENT:-claude}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+    case "$ELNORA_HANDOFF_AGENT" in claude|codex) ;; *) ELNORA_HANDOFF_AGENT="claude" ;; esac
 else
-    echo "[1/9] Claude Code already installed: $(claude --version). Skipping."
+    ELNORA_HANDOFF_AGENT="$ELNORA_AGENT"
+fi
+# True when $1 (claude|codex) is among the installed agent(s).
+agent_installed() { case "$ELNORA_AGENT" in "$1"|both) return 0 ;; *) return 1 ;; esac; }
+
+# --- [1/9] AI coding agent(s) (installed FIRST - zero dependencies) ---
+# Both Claude Code and Codex ship self-contained native installers that need
+# no prerequisites (not even brew or node), so whichever the user picked is
+# the very first thing on the machine. Each writes its binary under
+# ~/.local/bin and auto-updates itself.
+if agent_installed claude; then
+    if ! command -v claude &> /dev/null; then
+        echo "[1/9] Installing Claude Code..."
+        echo "  Using Anthropic's native installer (no prerequisites required)."
+        # `set -o pipefail` - without it, a failed curl (404, DNS, network hiccup)
+        # would send empty stdin to bash, which then exits 0 and the whole step
+        # looks like a silent success. pipefail propagates curl's non-zero exit
+        # through the pipe so run_step can catch and remediate it.
+        if run_step "Claude Code" /bin/bash -c "set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash"; then
+            # Make `claude` visible in THIS shell without requiring a new terminal.
+            # persist_local_bin_path below ensures future shells inherit the
+            # PATH entry too (the installer's own profile update is unreliable
+            # on re-runs).
+            export PATH="$HOME/.local/bin:$PATH"
+            echo "  Done. Version: $(claude --version 2>/dev/null || echo 'installed - restart terminal')"
+        fi
+    else
+        echo "[1/9] Claude Code already installed: $(claude --version). Skipping."
+    fi
+fi
+if agent_installed codex; then
+    if ! command -v codex &> /dev/null; then
+        echo "[1/9] Installing Codex..."
+        echo "  Using OpenAI's native installer (no prerequisites required)."
+        if run_step "Codex" /bin/bash -c "set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh"; then
+            export PATH="$HOME/.local/bin:$PATH"
+            echo "  Done. Version: $(codex --version 2>/dev/null || echo 'installed - restart terminal')"
+        fi
+    else
+        echo "[1/9] Codex already installed: $(codex --version). Skipping."
+    fi
 fi
 
 # --- [2/9] Homebrew ---
@@ -884,6 +913,56 @@ if [ "${ELNORA_SKIP_HANDOFF:-}" = "1" ] || [ "${ELNORA_HANDOFF_MODE:-}" = "headl
     echo "  (Skipped - non-interactive run.)"
     echo ""
 else
+    # ---- Handoff-agent auth ----
+    # Only the agent that finishes Phase 2 ($ELNORA_HANDOFF_AGENT) must be
+    # signed in here. If both were installed, the other one signs in on its
+    # own first launch.
+    if [ "$ELNORA_HANDOFF_AGENT" = "codex" ]; then
+    echo "[1/2] Codex"
+    if [ -n "${OPENAI_API_KEY:-}${CODEX_API_KEY:-}" ]; then
+        echo "      OPENAI_API_KEY/CODEX_API_KEY set - skipping browser login."
+    elif [ -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]; then
+        echo "      [OK] Already signed in."
+        mark_done "auth-codex"
+    else
+        echo "      Not signed in. A browser will open so you can sign in to ChatGPT."
+        echo "      [Y]es / [s]kip+continue without Codex / [q]uit script"
+        printf "      > "
+        read -r answer
+        case "${answer:-Y}" in
+            [Yy]*|"")
+                if codex login; then
+                    echo "      [OK] Signed in."
+                    mark_done "auth-codex"
+                else
+                    echo "      [FAIL] Codex sign-in didn't complete."
+                    echo ""
+                    echo "         Nothing is lost. When you're ready, run again:"
+                    echo ""
+                    echo "             bash setup-mac.sh"
+                    echo ""
+                    echo "         It resumes right here at the sign-in step - every"
+                    echo "         tool above is already installed and skipped instantly."
+                    echo "         To try the login by hand first:  codex login"
+                    exit 1
+                fi
+                ;;
+            [Ss]*)
+                echo "      [SKIP] Phase 2 needs a signed-in agent to finish setup."
+                echo "             Re-run when ready:  bash setup-mac.sh"
+                exit 0
+                ;;
+            [Qq]*)
+                echo "      Quit. Re-run anytime:  bash setup-mac.sh"
+                exit 0
+                ;;
+            *)
+                echo "      Unrecognized response, treating as skip."
+                exit 0
+                ;;
+        esac
+    fi
+    else
     # ---- Claude auth ----
     echo "[1/2] Claude Code"
     if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
@@ -980,6 +1059,17 @@ else
                 ;;
         esac
     fi
+    fi  # end handoff-agent auth (codex / claude branch)
+
+    # When both agents were installed, the non-handoff one is optional here -
+    # it prompts for sign-in on its own first launch. Just remind the user.
+    if [ "$ELNORA_AGENT" = "both" ]; then
+        if [ "$ELNORA_HANDOFF_AGENT" = "claude" ]; then
+            echo "      Note: Codex is installed too - sign in anytime with 'codex login'."
+        else
+            echo "      Note: Claude Code is installed too - sign in anytime with 'claude auth login --claudeai'."
+        fi
+    fi
     echo ""
 
     # ---- GitHub auth ----
@@ -1044,18 +1134,32 @@ if [ -n "${GITHUB_PATH:-}" ]; then
     echo "  (CI: propagated PATH to \$GITHUB_PATH for downstream steps)"
 fi
 
-# The exact prompt handed to Claude. Defined once so the headless test mode
+# The exact prompt handed to the agent. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
-# divergence here is the bug headless mode is supposed to catch.
+# divergence here is the bug headless mode is supposed to catch. Both agents
+# read INSTALL_FOR_AGENTS.md (it carries an "Agent tooling adapter" section so
+# Codex maps Claude tool names to its own equivalents).
 HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log."
 
-if command -v claude >/dev/null 2>&1; then
+# Resolve the handoff agent's binary, display name, and first-run auth note.
+case "$ELNORA_HANDOFF_AGENT" in
+    codex)
+        AGENT_BIN="codex"; AGENT_NAME="Codex"
+        AUTH_NOTE="On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
+        ;;
+    *)
+        AGENT_BIN="claude"; AGENT_NAME="Claude Code"
+        AUTH_NOTE="On first run, your browser will open to log into your Claude Pro/Max account."
+        ;;
+esac
+
+if command -v "$AGENT_BIN" >/dev/null 2>&1; then
     if [ "${ELNORA_SKIP_HANDOFF:-}" = "1" ]; then
         # CI/test escape hatch: print what would happen and exit cleanly. Used
         # by .github/workflows/install-smoke-test.yml so the smoke test doesn't
-        # hang on Claude trying to open a browser for first-run auth.
+        # hang on the agent trying to open a browser for first-run auth.
         # Echo the prompt itself so the smoke test has something to grep on.
-        echo "ELNORA_SKIP_HANDOFF=1 set - would exec claude with the Phase 2 prompt. Skipping for non-interactive run."
+        echo "ELNORA_SKIP_HANDOFF=1 set - would hand off to $AGENT_NAME with the Phase 2 prompt. Skipping for non-interactive run."
         echo "  Phase 2 prompt: $HANDOFF_PROMPT"
         exit 0
     fi
@@ -1172,33 +1276,40 @@ if command -v claude >/dev/null 2>&1; then
             exit 2
         fi
         TRANSCRIPT="${ELNORA_HANDOFF_TRANSCRIPT:-$HOME/handoff-transcript.jsonl}"
-        echo "ELNORA_HANDOFF_MODE=headless - running claude -p (transcript: $TRANSCRIPT)"
-        # --verbose is REQUIRED with -p --output-format=stream-json (Claude Code
-        # rejects the combo otherwise). --max-turns 80 caps a runaway loop;
-        # Phase 2 averages ~40-50 turns when GitHub bootstrap (gh auth + repo
-        # create + push + verify) runs in full, so 80 leaves ~30-turn
-        # headroom for transient retries (network, tool errors).
-        #
-        # The trailing `> /dev/null` is load-bearing: this entire script is
-        # wrapped in `exec > >(tee "$LOG_FILE")` at the top, so anything
-        # that reaches the script's stdout also lands in
-        # ~/claude-starter-install.log. Without /dev/null the JSONL stream
-        # passes through `tee` to the script's stdout AND gets appended to
-        # the install log -- bloating it from ~3KB to ~180KB and embedding
-        # the agent's own conversation (including the literal text
-        # "FAILED:" inside INSTALL_FOR_AGENTS.md) where the next agent's
-        # `grep FAILED:` will hit it as false positives. Send JSONL to
-        # transcript only; the workflow has a separate "Show handoff
-        # transcript" step for live debugging.
-        claude -p "$HANDOFF_PROMPT" \
-            --permission-mode bypassPermissions \
-            --output-format stream-json \
-            --verbose \
-            --max-turns 80 \
-          | tee "$TRANSCRIPT" > /dev/null
-        rc=${PIPESTATUS[0]}
+        # The trailing `> /dev/null` on each branch is load-bearing: this entire
+        # script is wrapped in `exec > >(tee "$LOG_FILE")` at the top, so anything
+        # reaching the script's stdout also lands in ~/claude-starter-install.log.
+        # Without /dev/null the agent's own conversation stream (including the
+        # literal text "FAILED:" inside INSTALL_FOR_AGENTS.md) bloats the log and
+        # poisons the next agent's `grep FAILED:`. Send the transcript to its
+        # file only; the workflow has a separate "Show handoff transcript" step.
+        if [ "$AGENT_BIN" = "codex" ]; then
+            echo "ELNORA_HANDOFF_MODE=headless - running codex exec (transcript: $TRANSCRIPT)"
+            # `codex exec` is the non-interactive analog of `claude -p`.
+            # --dangerously-bypass-approvals-and-sandbox is Codex's equivalent
+            # of --permission-mode bypassPermissions: nobody is there to approve
+            # tool calls in headless mode. Gated by the same CI / local-opt-in
+            # checks above.
+            codex exec "$HANDOFF_PROMPT" --dangerously-bypass-approvals-and-sandbox 2>&1 \
+              | tee "$TRANSCRIPT" > /dev/null
+            rc=${PIPESTATUS[0]}
+        else
+            echo "ELNORA_HANDOFF_MODE=headless - running claude -p (transcript: $TRANSCRIPT)"
+            # --verbose is REQUIRED with -p --output-format=stream-json (Claude Code
+            # rejects the combo otherwise). --max-turns 80 caps a runaway loop;
+            # Phase 2 averages ~40-50 turns when GitHub bootstrap (gh auth + repo
+            # create + push + verify) runs in full, so 80 leaves ~30-turn
+            # headroom for transient retries (network, tool errors).
+            claude -p "$HANDOFF_PROMPT" \
+                --permission-mode bypassPermissions \
+                --output-format stream-json \
+                --verbose \
+                --max-turns 80 \
+              | tee "$TRANSCRIPT" > /dev/null
+            rc=${PIPESTATUS[0]}
+        fi
         echo ""
-        echo "claude -p exited with code $rc (transcript saved to $TRANSCRIPT, $(wc -l < "$TRANSCRIPT" | tr -d ' ') events)"
+        echo "$AGENT_NAME handoff exited with code $rc (transcript saved to $TRANSCRIPT, $(wc -l < "$TRANSCRIPT" | tr -d ' ') events)"
         exit "$rc"
     fi
 
@@ -1221,13 +1332,17 @@ if command -v claude >/dev/null 2>&1; then
     #      `code` shim couldn't be created (brew bin not writable, Cursor
     #      instead of VS Code, etc.).
     if [ "${TERM_PROGRAM:-}" = "vscode" ]; then
-        echo "Already inside VS Code - starting Claude in this terminal."
-        echo "On first run, your browser will open to log into your Claude Pro/Max account."
+        echo "Already inside VS Code - starting $AGENT_NAME in this terminal."
+        echo "$AUTH_NOTE"
         echo ""
-        exec claude "$HANDOFF_PROMPT"
+        exec "$AGENT_BIN" "$HANDOFF_PROMPT"
     fi
 
-    if command -v code >/dev/null 2>&1 && [ "${ELNORA_SKIP_VSCODE_HANDOFF:-}" != "1" ]; then
+    # The VS Code sentinel handoff drives `claude` specifically (run-handoff.sh
+    # exec's claude), so it only applies when Claude is the handoff agent. Codex
+    # falls through to the terminal exec below (still inside VS Code's integrated
+    # terminal when launched from there).
+    if [ "$AGENT_BIN" = "claude" ] && command -v code >/dev/null 2>&1 && [ "${ELNORA_SKIP_VSCODE_HANDOFF:-}" != "1" ]; then
         VSCODE_DIR="$SCRIPT_DIR/.vscode"
         SENTINEL="$VSCODE_DIR/.handoff-pending"
         if [ -d "$VSCODE_DIR" ] && [ -f "$VSCODE_DIR/run-handoff.sh" ]; then
@@ -1271,24 +1386,25 @@ if command -v claude >/dev/null 2>&1; then
         fi
     fi
 
-    echo "Starting Claude - it will read INSTALL_FOR_AGENTS.md and finish setup."
-    echo "On first run, your browser will open to log into your Claude Pro/Max account."
+    echo "Starting $AGENT_NAME - it will read INSTALL_FOR_AGENTS.md and finish setup."
+    echo "$AUTH_NOTE"
     echo ""
-    # exec replaces this shell - Claude takes over with the initial prompt loaded.
-    # If exec fails (no TTY, broken install), the lines below print as a fallback.
-    exec claude "$HANDOFF_PROMPT"
+    # exec replaces this shell - the agent takes over with the initial prompt
+    # loaded. If exec fails (no TTY, broken install), the lines below print as
+    # a fallback.
+    exec "$AGENT_BIN" "$HANDOFF_PROMPT"
 fi
 
-# Fallback: claude not on PATH (install of Claude Code itself failed) - show
-# the manual continuation path so the user can recover after fixing the issue.
-echo "  !  'claude' command not found - Claude Code install may have failed."
+# Fallback: handoff agent not on PATH (its install failed) - show the manual
+# continuation path so the user can recover after fixing the issue.
+echo "  !  '$AGENT_BIN' command not found - $AGENT_NAME install may have failed."
 echo ""
 echo "  See the remediation hints above. Once you've fixed it, re-run:"
 echo "      ./setup-mac.sh"
 echo ""
 echo "  Or continue manually:"
 echo "      cd $(pwd)"
-echo "      claude"
+echo "      $AGENT_BIN"
 echo "      Then say: 'Read INSTALL_FOR_AGENTS.md and finish setup.'"
 echo ""
 

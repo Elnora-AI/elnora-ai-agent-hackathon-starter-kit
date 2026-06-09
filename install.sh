@@ -96,11 +96,99 @@ if ! [[ "$WORKSPACE_NAME" =~ $NAME_RE ]]; then
     exit 1
 fi
 
+# ---- Coding agent selection -----------------------------------------------
+# The starter kit works with two coding agents: Claude Code (Anthropic) and
+# Codex (OpenAI). Phase 1 installs whichever you pick; Phase 2 ("finish setup")
+# is driven by exactly ONE agent, because the handoff is a single launch.
+#
+# Resolution order mirrors the workspace-name logic above:
+#   1. $ELNORA_AGENT env var (CI / scripted runs): claude | codex | both
+#   2. Interactive prompt on /dev/tty
+#   3. Fallback to "claude" for non-interactive contexts with no env var.
+#
+# When "both" is chosen we ask a second question ($ELNORA_HANDOFF_AGENT) for
+# which agent finishes setup right now; the other stays installed and ready.
+_norm_agent() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'; }
+
+if [ -n "${ELNORA_AGENT:-}" ]; then
+    ELNORA_AGENT="$(_norm_agent "$ELNORA_AGENT")"
+elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
+    echo "Which coding agent do you want to use?"
+    echo "  1) Claude Code   (Anthropic; needs a Claude Pro/Max plan or API key)"
+    echo "  2) Codex         (OpenAI; needs a ChatGPT Plus/Pro plan or API key)"
+    echo "  3) Both          (install both; you'll pick which finishes setup)"
+    echo ""
+    while :; do
+        printf "Agent [1]: " > /dev/tty
+        IFS= read -r reply < /dev/tty || reply=""
+        case "$(_norm_agent "${reply:-1}")" in
+            1|claude) ELNORA_AGENT="claude"; break ;;
+            2|codex)  ELNORA_AGENT="codex";  break ;;
+            3|both)   ELNORA_AGENT="both";   break ;;
+            *) echo "  [!] Enter 1, 2, or 3 (or claude / codex / both)." > /dev/tty ;;
+        esac
+    done
+    echo ""
+else
+    ELNORA_AGENT="claude"
+fi
+
+case "$ELNORA_AGENT" in
+    claude|codex|both) ;;
+    *)
+        echo "[!] ELNORA_AGENT='$ELNORA_AGENT' is invalid. Use: claude | codex | both." >&2
+        exit 1
+        ;;
+esac
+
+# When both are installed, decide which one drives Phase 2 right now.
+if [ "$ELNORA_AGENT" = "both" ]; then
+    if [ -n "${ELNORA_HANDOFF_AGENT:-}" ]; then
+        ELNORA_HANDOFF_AGENT="$(_norm_agent "$ELNORA_HANDOFF_AGENT")"
+    elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
+        echo "You're installing both. Which one should finish setup right now?"
+        echo "  1) Claude Code"
+        echo "  2) Codex"
+        echo "  (The other stays installed and ready to launch anytime.)"
+        echo ""
+        while :; do
+            printf "Finish setup with [1]: " > /dev/tty
+            IFS= read -r reply < /dev/tty || reply=""
+            case "$(_norm_agent "${reply:-1}")" in
+                1|claude) ELNORA_HANDOFF_AGENT="claude"; break ;;
+                2|codex)  ELNORA_HANDOFF_AGENT="codex";  break ;;
+                *) echo "  [!] Enter 1 or 2 (or claude / codex)." > /dev/tty ;;
+            esac
+        done
+        echo ""
+    else
+        ELNORA_HANDOFF_AGENT="claude"
+    fi
+else
+    ELNORA_HANDOFF_AGENT="$ELNORA_AGENT"
+fi
+
+case "$ELNORA_HANDOFF_AGENT" in
+    claude|codex) ;;
+    *)
+        echo "[!] ELNORA_HANDOFF_AGENT='$ELNORA_HANDOFF_AGENT' is invalid. Use: claude | codex." >&2
+        exit 1
+        ;;
+esac
+
+# Pass the choice through to setup-mac.sh (env survives the exec at the end).
+export ELNORA_AGENT ELNORA_HANDOFF_AGENT
+
 TARGET_DIR="$HOME/Documents/$WORKSPACE_NAME"
 
+case "$ELNORA_AGENT" in
+    claude) _agent_label="Claude Code" ;;
+    codex)  _agent_label="Codex" ;;
+    both)   _agent_label="Claude Code + Codex" ;;
+esac
 echo "This will:"
 echo "  1. Download the starter kit to $TARGET_DIR"
-echo "  2. Run setup-mac.sh (installs Claude Code + dev tools)"
+echo "  2. Run setup-mac.sh (installs $_agent_label + dev tools)"
 echo ""
 
 # Always wipe + re-extract on every run. If the customer is running this
