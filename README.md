@@ -1,23 +1,17 @@
 # Elnora AI Agent Hackathon Starter Kit
 
-One-command setup that installs and wires together your coding agent — **Claude
-Code or Codex** (your choice) — and the supporting dev tools (Python, Node.js,
-Git, GitHub CLI, VS Code, Obsidian) you need to build AI agents from the
-terminal.
+One command sets up everything you need to build AI agents on your laptop — your
+coding agent (**Claude Code or Codex**, your choice) plus the dev tools that go
+with it: Python, Node.js, Git, VS Code, and Obsidian.
 
-Built for the **Elnora & EFS AI hackathon workshop**: run one command and you're
-at a working agent environment in 15–25 minutes, no setup rabbit holes — so you
-spend the workshop building your agent, not fighting installers.
+Built for the **Elnora AI agent hackathon**: run one command and you have a
+working agent environment in 15–25 minutes — so you spend the time building, not
+installing.
 
 ## Who this is for
 
-**Hackathon participants** who want the fastest path from a fresh laptop to a
-working Claude Code or Codex environment, without chasing installers or learning
-what `brew` is on day one.
-
-Also a useful starting point for anyone bootstrapping a Claude Code or Codex
-project, validating an existing setup, or using this as a template to build
-their own agents and plugins.
+Anyone who wants the fastest path from a fresh laptop to a working Claude Code or
+Codex setup. It also works as a clean starting template for any agent project.
 
 ## Requirements
 
@@ -127,15 +121,20 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 ├── marketplace-plugins.md                 # Recommended plugin marketplaces
 ├── install.sh / install.ps1               # Bootstrap entry points
 ├── setup-mac.sh / setup-windows.ps1       # Phase 1 setup scripts
-├── .env.template                          # Environment variable placeholders
-├── .mcp.json                              # MCP server configuration
+├── .env.template                          # API-key placeholders — copy to .env, never edit in place
+├── .mcp.json                              # MCP servers (Chrome DevTools, Context7, grep, Estonian)
 ├── .gitignore
 ├── LICENSE                                # MIT
 ├── .claude/
 │   ├── settings.json                      # Plugins, permissions, env defaults
 │   └── knowledge-base.local.md.template   # Per-user knowledge-base config
+├── plugins/                               # Bundled local plugins (vercel + v0)
+│   └── vercel/
+├── examples/
+│   └── vertex/                            # Runnable image (nano-banana), video (Veo 3) + voiceover scripts
 └── docs/
-    └── getting-started.md                 # Daily-workflow guide + manual fallback
+    ├── getting-started.md                 # Daily-workflow guide + manual fallback
+    └── google-cloud-vertex-setup.md       # gcloud + Vertex AI: image, video, voiceover + more
 ```
 
 ## Post-install
@@ -177,6 +176,7 @@ Defaults in `.claude/settings.json`:
 - `CLAUDE_CODE_NO_FLICKER=1` opts into the [full-screen alt-buffer renderer](https://code.claude.com/docs/en/fullscreen).
 - `autoUpdatesChannel: "latest"` opts into [auto-updates](https://code.claude.com/docs/en/setup#auto-updates) on the `latest` channel. Use `"stable"` for ~1-week-old builds. Ignored for package-manager installs.
 - `remoteControlAtStartup: true` auto-enables [Remote Control](https://code.claude.com/docs/en/remote-control). Sessions are reachable from any device signed into your Claude account; review before enabling on machines that handle proprietary data.
+- `enableAllProjectMcpServers: true` auto-approves every MCP server in [`.mcp.json`](.mcp.json) (Chrome DevTools, Context7, grep, Estonian) so they're connected and usable on first launch — no per-server approval prompt. Remove this key if you'd rather approve each server manually.
 
 Set values to `false` or `"0"` to disable.
 

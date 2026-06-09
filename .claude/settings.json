@@ -5,6 +5,7 @@
   },
   "autoUpdatesChannel": "latest",
   "remoteControlAtStartup": true,
+  "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
       "Read",
@@ -20,7 +21,9 @@
       "Bash",
       "mcp__context7__*",
       "mcp__grep__*",
-      "mcp__chrome-devtools__*"
+      "mcp__chrome-devtools__*",
+      "mcp__estonian__*",
+      "mcp__plugin_context7_context7__*"
     ],
     "deny": [
       "Bash(git push --force)",
@@ -41,16 +44,85 @@
 
       "Bash(shutdown*)",
       "Bash(reboot*)",
-      "Bash(halt*)"
+      "Bash(halt*)",
+
+      "Bash(rm -r /*)",
+      "Bash(rm -r ~/*)",
+      "Bash(rm -r $HOME*)",
+      "Bash(dd *)",
+      "Bash(mkfs*)",
+      "Bash(find * -delete*)",
+      "Bash(find * -exec rm *)",
+
+      "Bash(gh repo delete*)",
+      "Bash(npm publish*)",
+      "Bash(gcloud projects delete*)",
+
+      "Bash(vercel remove *)",
+      "Bash(vercel rm *)",
+      "Bash(vercel project rm *)",
+      "Bash(vercel project remove *)",
+      "Bash(vercel domains rm *)",
+      "Bash(vercel domains remove *)",
+      "Bash(vercel domains buy *)",
+      "Bash(vercel domains move *)",
+      "Bash(vercel domains transfer-in *)",
+      "Bash(vercel dns rm *)",
+      "Bash(vercel dns remove *)",
+      "Bash(vercel env rm *)",
+      "Bash(vercel env remove *)",
+      "Bash(vercel env add *)",
+      "Bash(vercel env update *)",
+      "Bash(vercel alias rm *)",
+      "Bash(vercel alias remove *)",
+      "Bash(vercel certs rm *)",
+      "Bash(vercel certs remove *)",
+      "Bash(vercel blob del *)",
+      "Bash(vercel blob delete *)",
+      "Bash(vercel blob store remove*)",
+      "Bash(vercel cache purge*)",
+      "Bash(vercel cache dangerously-delete*)",
+      "Bash(vercel integration remove *)",
+      "Bash(vercel integration-resource remove *)",
+      "Bash(vercel integration-resource disconnect *)",
+      "Bash(vercel ir remove *)",
+      "Bash(vercel ir rm *)",
+      "Bash(vercel ir disconnect *)",
+      "Bash(vercel flags rm *)",
+      "Bash(vercel flags remove *)",
+      "Bash(vercel flags archive *)",
+      "Bash(vercel redirects remove *)",
+      "Bash(vercel redirects upload *)",
+      "Bash(vercel redirects promote *)",
+      "Bash(vercel rolling-release abort*)",
+      "Bash(vercel git disconnect*)",
+      "Bash(vercel promote *)",
+      "Bash(vercel rollback *)",
+      "Bash(vercel api *-X DELETE*)",
+      "Bash(vercel api *-X POST*)",
+      "Bash(vercel api *-X PUT*)",
+      "Bash(vercel api *-X PATCH*)",
+      "Bash(vercel api *--method DELETE*)",
+      "Bash(vercel api *--method POST*)",
+      "Bash(vercel api *--method PUT*)",
+      "Bash(vercel api *--method PATCH*)",
+      "Bash(vercel teams invite *)"
     ]
   },
   "hooks": {},
   "enabledPlugins": {
     "commit-commands@claude-code-plugins": true,
     "context7@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true
+    "claude-md-management@claude-plugins-official": true,
+    "vercel@elnora-starter-plugins": true
   },
   "extraKnownMarketplaces": {
+    "elnora-starter-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "./plugins"
+      }
+    },
     "claude-code-plugins": {
       "source": {
         "source": "git",
@@ -83,6 +155,34 @@
       "source": {
         "source": "git",
         "url": "https://github.com/anthropics/knowledge-work-plugins.git"
+      },
+      "autoUpdate": true
+    },
+    "claude-for-legal": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-for-legal.git"
+      },
+      "autoUpdate": true
+    },
+    "claude-for-financial-services": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/financial-services.git"
+      },
+      "autoUpdate": true
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/obra/superpowers-marketplace.git"
+      },
+      "autoUpdate": true
+    },
+    "addy-agent-skills": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/addyosmani/agent-skills.git"
       },
       "autoUpdate": true
     }

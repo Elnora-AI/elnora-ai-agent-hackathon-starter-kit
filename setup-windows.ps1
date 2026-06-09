@@ -1121,7 +1121,10 @@ if ($vscodeExe) {
     }
 }
 
-$results["Claude Code"] = Get-ToolVersion 'claude'
+# Only show the agent row(s) the user actually chose to install, so a Codex-only
+# run never reports a phantom "Claude Code NOT INSTALLED" (and vice versa).
+if (Test-AgentInstalled 'claude') { $results["Claude Code"] = Get-ToolVersion 'claude' }
+if (Test-AgentInstalled 'codex')  { $results["Codex"]       = Get-ToolVersion 'codex' }
 
 $ghVer = Get-ToolVersion 'gh'
 if (-not $ghVer -and $ciSkipMissingWinget) { $ghVer = "__SKIPPED_OPTIONAL" }
