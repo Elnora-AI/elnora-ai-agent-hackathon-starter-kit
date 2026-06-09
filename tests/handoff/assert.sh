@@ -36,35 +36,6 @@ echo "  Repo:       $REPO_DIR"
 echo "  Transcript: $TRANSCRIPT"
 echo ""
 
-# --- Elnora CLI auth ---
-# The CLI persists credentials to ~/.elnora/profiles.toml via
-# `elnora auth login --api-key ...`. Verify Claude actually authenticated
-# the CLI (not just exported a useless .env file -- the CLI doesn't read
-# .env, so writing it does nothing for future shells).
-echo "[elnora auth]"
-if [ -f "$HOME/.elnora/profiles.toml" ]; then
-    ok "~/.elnora/profiles.toml exists"
-    # Note: the CLI sets mode 600 itself; we don't re-check it here. The
-    # customer-visible contract for the starter kit is "key persisted +
-    # auth status returns success" (covered below) -- re-validating the
-    # CLI's own file-mode behavior isn't this test's responsibility, and
-    # there's no equivalent ACL check on Windows anyway.
-    # Allow leading whitespace -- TOML lets `api_key = ...` appear indented
-    # inside a [profile] table section, and the CLI is free to format that way.
-    if grep -qE '^[[:space:]]*api_key[[:space:]]*=[[:space:]]*"elnora_live_' "$HOME/.elnora/profiles.toml"; then
-        ok "profiles.toml contains api_key = elnora_live_*"
-    else
-        fail "profiles.toml missing api_key = \"elnora_live_*\" line"
-    fi
-else
-    fail "~/.elnora/profiles.toml was not created (Claude did not run 'elnora auth login --api-key ...')"
-fi
-if elnora auth status >/dev/null 2>&1; then
-    ok "elnora auth status returns success"
-else
-    fail "elnora auth status failed (CLI is not authenticated)"
-fi
-
 # --- git repo ---
 echo ""
 echo "[git]"
@@ -229,16 +200,6 @@ if [ -f "$TRANSCRIPT" ]; then
         ok "transcript contains HANDOFF_COMPLETE marker"
     else
         fail "transcript does not contain HANDOFF_COMPLETE marker"
-    fi
-    # Sanity check: did Claude actually authenticate + verify the Elnora CLI?
-    # Match the auth/verification commands from INSTALL_FOR_AGENTS.md (steps 4-7).
-    # We grep for any of: `elnora whoami`, `elnora doctor`, or `elnora auth login`
-    # so the test fails if Claude only ran `elnora --version` and skipped the
-    # actual auth check.
-    if grep -qE 'elnora (whoami|doctor|auth (login|status))' "$TRANSCRIPT"; then
-        ok "transcript shows Claude invoked an elnora auth/verification command"
-    else
-        fail "transcript shows no elnora auth/verification command (whoami|doctor|auth login|auth status)"
     fi
 else
     fail "transcript file not found at $TRANSCRIPT"

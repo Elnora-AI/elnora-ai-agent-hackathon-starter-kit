@@ -92,9 +92,8 @@ Claude Code updates automatically. For plugins:
 3. Update as needed
 
 Marketplaces registered in this starter kit have `autoUpdate: true`, so Claude
-Code pulls the latest definitions at session start. The Elnora CLI nags you
-in its own output when a new version ships — re-running the setup script is
-idempotent and upgrades in place.
+Code pulls the latest definitions at session start. Re-running the setup script
+is idempotent and upgrades installed tools in place.
 
 ---
 
@@ -129,29 +128,6 @@ git fetch origin
 
 If any step fails, see [`../RECOVERY.md`](../RECOVERY.md) → "GitHub auth
 fails" or "GitHub repo creation fails."
-
----
-
-## Authenticate Elnora AI
-
-The setup script installs the Elnora CLI and pre-wires the hosted MCP server at
-`https://mcp.elnora.ai/mcp`. The CLI authenticates with an **API key** (not
-browser OAuth):
-
-1. Open <https://platform.elnora.ai/settings> and click the **API Keys** tab.
-2. Click **Create key** and copy the value (it starts with `elnora_live_`).
-3. Run:
-
-   ```bash
-   elnora auth login --api-key <paste-your-key-here>
-   ```
-
-The CLI writes the key to `~/.elnora/profiles.toml` (mode 600), and every new
-terminal stays authenticated. Switch profiles later with `elnora auth profiles`.
-
-If Claude Code calls an Elnora MCP tool before you've run the CLI login, the
-hosted MCP server itself prompts for the key on first use — but doing the CLI
-login once is the easiest way to authenticate every surface at once.
 
 ---
 

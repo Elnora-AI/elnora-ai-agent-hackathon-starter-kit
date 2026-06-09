@@ -3,7 +3,7 @@
 # Claude Code Setup - macOS
 # ============================================================
 # Installs a complete Claude Code development environment:
-# Claude Code CLI, Elnora CLI, Homebrew, Node.js, Git, Python,
+# Claude Code CLI, Homebrew, Node.js, Git, Python,
 # VS Code, GitHub CLI, and Obsidian.
 #
 # Run from Terminal (or VS Code terminal):
@@ -32,9 +32,8 @@ export PATH="$HOME/.local/bin:$PATH"
 LOG_FILE="$HOME/claude-starter-install.log"
 # Pre-create the file with mode 600 BEFORE tee touches it. tee honors umask
 # (typically 0644), so without this the log lands world-readable and any
-# other user on a shared Mac can read it. The script later prompts for an
-# Elnora API key and uses `read -rs` specifically to keep it out of this
-# log -- locking the file down belt-and-suspenders.
+# other user on a shared Mac can read it. Locking the file down keeps any
+# sensitive output that scrolls through it private -- belt-and-suspenders.
 ( umask 077 && : > "$LOG_FILE" ) || true
 chmod 600 "$LOG_FILE" 2>/dev/null || true
 exec > >(tee "$LOG_FILE") 2>&1
@@ -46,9 +45,9 @@ FAILED_STEPS=()
 # ------------------------------------------------------------
 # This script is safe to run as many times as you like - already-installed
 # tools are detected and skipped. The checkpoint file below goes one step
-# further: it remembers one-time actions that already finished (e.g. the
-# Elnora CLI download) so a re-run does not repeat them, and it lets the
-# script announce "resuming" so a re-run never feels like starting over.
+# further: it remembers one-time actions that already finished so a re-run
+# does not repeat them, and it lets the script announce "resuming" so a
+# re-run never feels like starting over.
 #
 # Why this matters: the single most common place people stop is the Claude
 # Code sign-in step. If that happens - or the script is interrupted anywhere
@@ -178,21 +177,6 @@ Or install via npm (requires Node.js):
 Docs: https://docs.claude.com/en/docs/claude-code/overview
 Verify in a NEW terminal:
   claude --version
-EOF
-            ;;
-        "Elnora CLI"*)
-            cat <<'EOF'
-Try manually:
-  curl -fsSL https://cli.elnora.ai/install.sh | bash
-npm fallback (requires Node.js, already installed later in this script):
-  npm install -g @elnora-ai/cli
-The installer writes a binary to ~/.local/bin/elnora. If the install finished
-but 'elnora' is not found, either open a NEW terminal (Claude Code's step
-adds ~/.local/bin to your shell profile) or add this to ~/.zprofile yourself:
-  export PATH="$HOME/.local/bin:$PATH"
-Docs: https://cli.elnora.ai
-Verify in a NEW terminal:
-  elnora --version
 EOF
             ;;
         "GitHub CLI"*)
@@ -328,12 +312,12 @@ if ! xcode-select -p &>/dev/null; then
     exit 1
 fi
 
-# --- [1/10] Claude Code CLI (installed FIRST - zero dependencies) ---
+# --- [1/9] Claude Code CLI (installed FIRST - zero dependencies) ---
 # Using Anthropic's native installer rather than the brew cask so Claude Code
 # is the very first thing on the machine. Works before brew exists, writes a
 # self-contained binary to ~/.local/bin/claude, and auto-updates itself.
 if ! command -v claude &> /dev/null; then
-    echo "[1/10] Installing Claude Code..."
+    echo "[1/9] Installing Claude Code..."
     echo "  Using Anthropic's native installer (no prerequisites required)."
     # `set -o pipefail` - without it, a failed curl (404, DNS, network hiccup)
     # would send empty stdin to bash, which then exits 0 and the whole step
@@ -349,81 +333,10 @@ if ! command -v claude &> /dev/null; then
         echo "  Done. Version: $(claude --version 2>/dev/null || echo 'installed - restart terminal')"
     fi
 else
-    echo "[1/10] Claude Code already installed: $(claude --version). Skipping."
+    echo "[1/9] Claude Code already installed: $(claude --version). Skipping."
 fi
 
-# --- [2/10] Elnora CLI (installed SECOND - also zero dependencies) ---
-# Elnora's installer downloads a pre-built binary from GitHub releases into
-# ~/.local/bin/elnora (same dir as Claude Code), so no Node/brew required.
-# We deliberately run this before Homebrew / Node so the order stays
-# "AI surfaces first, toolchain second" and so the Elnora binary is ready
-# the moment a user opens Claude Code.
-#
-# We always install the LATEST release so users get current bug fixes and
-# features. To keep the upgrade path tight, we re-run the installer even
-# when `elnora` is already on PATH - Elnora's installer is idempotent and a
-# no-op when the existing binary already matches the latest release.
-#
-# Escape hatch: set ELNORA_CLI_VERSION (e.g. "v1.5.0") to pin to a specific
-# release. Useful behind a corporate NAT where many machines share an IP and
-# can exhaust GitHub's 60/hr unauthenticated rate limit on
-# api.github.com/repos/.../releases/latest. Workshop hosts on shared wifi may
-# want to set this in the environment before kicking off the install.
-if [ -n "${ELNORA_CLI_VERSION:-}" ]; then
-    # Validate before use. The value flows into a `bash -c "... bash -s $val"`
-    # subshell below, so an unvalidated value like `v1.0; rm -rf ~` would be
-    # interpreted as a chained command. The published Elnora release tag
-    # format is `vMAJOR.MINOR[.PATCH]` (no suffixes, no whitespace), so any
-    # value outside `^v?\d+\.\d+(\.\d+)?$` is either a typo or an attack.
-    if ! printf '%s' "$ELNORA_CLI_VERSION" | grep -Eq '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
-        echo "[!] ELNORA_CLI_VERSION='$ELNORA_CLI_VERSION' is not a valid release tag." >&2
-        echo "    Expected format: v1.2.3 (or 1.2.3, or v1.2). Refusing to use it" >&2
-        echo "    because it would be interpreted as shell input by the installer." >&2
-        echo "    Unset the variable or set it to a valid Elnora release tag and re-run." >&2
-        exit 1
-    fi
-    elnora_install_args="$ELNORA_CLI_VERSION"
-    elnora_install_label="$ELNORA_CLI_VERSION (pinned via ELNORA_CLI_VERSION)"
-else
-    elnora_install_args=""
-    elnora_install_label="latest"
-fi
-
-if ! command -v elnora &> /dev/null; then
-    echo "[2/10] Installing Elnora CLI ($elnora_install_label)..."
-    echo "  Using Elnora's native installer (no prerequisites required)."
-    # pipefail - see matching comment in the Claude Code block above.
-    # $elnora_install_args is regex-validated above (or empty), so the
-    # bash -s expansion is safe.
-    if run_step "Elnora CLI" /bin/bash -c "set -o pipefail; curl -fsSL https://cli.elnora.ai/install.sh | bash -s $elnora_install_args"; then
-        # Claude Code's step already exported PATH above, but be explicit in case
-        # this script is ever re-ordered.
-        export PATH="$HOME/.local/bin:$PATH"
-        echo "  Done. Version: $(elnora --version 2>/dev/null || echo 'installed - restart terminal')"
-        echo "  Next: paste your API key when prompted in step [3/3] of the auth section below,"
-        echo "        or run 'elnora auth login --api-key <key>' later. Get a key at"
-        echo "        https://platform.elnora.ai/settings (API Keys tab)."
-        mark_done "elnora-cli"
-    fi
-elif is_done "elnora-cli" && [ -z "${ELNORA_CLI_VERSION:-}" ]; then
-    # Resume fast-path: the installer's download/refresh is the only step here
-    # that does real network work even when elnora is already present. If we
-    # already refreshed it during an earlier run of THIS setup, skip the
-    # re-download so a resume after the Claude sign-in stop is near-instant.
-    # (Skipped when a version is pinned - an explicit pin should always re-run.)
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "[2/10] Elnora CLI already installed ($(elnora --version 2>/dev/null || echo unknown)) and refreshed earlier this setup - skipping re-download."
-else
-    current_elnora_version="$(elnora --version 2>/dev/null || echo 'unknown')"
-    echo "[2/10] Elnora CLI already installed ($current_elnora_version) - refreshing to $elnora_install_label..."
-    if run_step "Elnora CLI upgrade" /bin/bash -c "set -o pipefail; curl -fsSL https://cli.elnora.ai/install.sh | bash -s $elnora_install_args"; then
-        export PATH="$HOME/.local/bin:$PATH"
-        echo "  Done. Version: $(elnora --version 2>/dev/null || echo 'installed - restart terminal')"
-        mark_done "elnora-cli"
-    fi
-fi
-
-# --- [3/10] Homebrew ---
+# --- [2/9] Homebrew ---
 # Always try to load brew shellenv if a brew binary exists - VS Code's terminal
 # can inherit a stale PATH that doesn't include brew's prefix, which would make
 # `command -v brew` return false and send us down the wrong branch.
@@ -435,7 +348,7 @@ for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
 done
 
 # Helper: append `export PATH="$HOME/.local/bin:$PATH"` to the user's zsh
-# login profile so new terminals pick up Claude/Elnora automatically.
+# login profile so new terminals pick up Claude Code automatically.
 #
 # Why this exists: Anthropic's native installer (claude.ai/install.sh) is
 # inconsistent about persisting PATH on re-runs. When the binary already
@@ -461,8 +374,8 @@ persist_local_bin_path() {
     fi
 }
 
-# Run the helper once now that both Claude and Elnora install steps above
-# are done. Idempotent if the line is already there. Catches both the fresh
+# Run the helper once now that the Claude Code install step above is
+# done. Idempotent if the line is already there. Catches both the fresh
 # install case (where Anthropic's installer often skips this step on
 # non-interactive `curl | bash` invocations) and the re-run case (where the
 # installer skips its shell-profile update because the binary already exists).
@@ -487,14 +400,14 @@ persist_brew_path() {
 }
 
 if ! command -v brew &> /dev/null; then
-    echo "[3/10] Installing Homebrew..."
+    echo "[2/9] Installing Homebrew..."
     echo "  Heads-up: this takes 5-15 min and will prompt for your Mac login"
     echo "  password. Password characters won't show as you type - that's normal."
     # Fetch the installer first so we can detect curl failures explicitly.
     # The previous form `bash -c "$(curl -fsSL ...)"` silently no-op'd when
     # curl failed (DNS, 404, network) -- `$(curl ...)` expanded to empty,
     # `bash -c ""` exited 0, and we'd hit the success branch with no brew.
-    # We don't pipe through a second `bash` (Claude/Elnora pattern) because
+    # We don't pipe through a second `bash` (the Claude Code pattern) because
     # Homebrew's installer is interactive: it needs to prompt for a sudo
     # password and read the "Press RETURN to continue" key, and we want to
     # leave its stdin exactly the way it was.
@@ -570,7 +483,7 @@ if ! command -v brew &> /dev/null; then
     # When brew_installer_ran=0 (curl failure above), we already printed and
     # recorded the failure, so fall through silently.
 else
-    echo "[3/10] Homebrew already installed. Skipping."
+    echo "[2/9] Homebrew already installed. Skipping."
     # Persist the PATH even on skip - prior runs may have installed brew without
     # editing the shell profile.
     if [ -x /opt/homebrew/bin/brew ]; then
@@ -580,7 +493,7 @@ else
     fi
 fi
 
-# --- [4/10] Node.js 22 LTS (pinned for Mac/Windows parity) ---
+# --- [3/9] Node.js 22 LTS (pinned for Mac/Windows parity) ---
 # Pinned to the 22.x LTS line so Mac and Windows workshop attendees land on the
 # same major. node@22 is keg-only on Homebrew - without `brew link --force
 # --overwrite` no `node` symlink appears in /opt/homebrew/bin and the rest of
@@ -593,7 +506,7 @@ if command -v node &> /dev/null; then
     fi
 fi
 if ! $node_major_ok; then
-    echo "[4/10] Installing Node.js 22 LTS..."
+    echo "[3/9] Installing Node.js 22 LTS..."
     # Suppress brew's post-install hints (the "==> Caveats" wall and the
     # "node@22 was installed but not linked..." warning). The next line
     # always runs `brew link --force --overwrite node@22`, which resolves
@@ -626,15 +539,15 @@ if ! $node_major_ok; then
         echo "  Done. Version: $(node --version 2>/dev/null || echo 'installed - restart terminal')"
     fi
 else
-    echo "[4/10] Node.js already installed: $(node --version). Skipping."
+    echo "[3/9] Node.js already installed: $(node --version). Skipping."
 fi
 
-# --- [5/10] Git + user config ---
+# --- [4/9] Git + user config ---
 if ! command -v git &> /dev/null; then
-    echo "[5/10] Installing Git..."
+    echo "[4/9] Installing Git..."
     run_step "Git" brew install git && echo "  Done. Version: $(git --version)"
 else
-    echo "[5/10] Git already installed: $(git --version). Skipping."
+    echo "[4/9] Git already installed: $(git --version). Skipping."
     # Apple's Xcode CLT ships /usr/bin/git, which is typically a few minor
     # versions behind brew. Works fine for clone/commit/push - tell users how
     # to upgrade if they want the latest.
@@ -678,7 +591,7 @@ else
     echo "      See the Git remediation in the recap at the end of this run." >&2
 fi
 
-# --- [6/10] Python 3.12 (pinned for Mac/Windows parity) ---
+# --- [5/9] Python 3.12 (pinned for Mac/Windows parity) ---
 # Pinned to match the Windows script's `Python.Python.3.12` winget package so
 # workshop attendees on different OSes end up on the same minor. python@3.12 is
 # keg-only on Homebrew, but `brew link --force --overwrite` creates the
@@ -692,27 +605,27 @@ if command -v python3 &> /dev/null && [[ "$(command -v python3)" != "/usr/bin/py
     fi
 fi
 if ! $python_version_ok; then
-    echo "[6/10] Installing Python 3.12..."
+    echo "[5/9] Installing Python 3.12..."
     if run_step "Python 3.12" brew install python@3.12; then
         brew link --force --overwrite python@3.12 &>/dev/null || true
         hash -r 2>/dev/null || true
         echo "  Done. Version: $(python3 --version 2>/dev/null || echo 'installed - restart terminal')"
     fi
 else
-    echo "[6/10] Python already installed: $(python3 --version). Skipping."
+    echo "[5/9] Python already installed: $(python3 --version). Skipping."
 fi
 
-# --- [7/10] VS Code ---
+# --- [6/9] VS Code ---
 if [ "${ELNORA_SKIP_OPTIONAL_INSTALLS:-}" = "1" ]; then
     # CI/test escape hatch -- mirrors setup-windows.ps1. Used by
     # handoff-e2e.yml and bootstrap-e2e.yml so the test runner doesn't burn
     # ~14s/run installing optional editors that the test never exercises.
-    echo "[7/10] VS Code: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run."
+    echo "[6/9] VS Code: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run."
 elif ! command -v code &> /dev/null && [ ! -d "/Applications/Visual Studio Code.app" ]; then
-    echo "[7/10] Installing VS Code..."
+    echo "[6/9] Installing VS Code..."
     run_step "VS Code" brew install --cask visual-studio-code && echo "  Done."
 else
-    echo "[7/10] VS Code already installed. Skipping."
+    echo "[6/9] VS Code already installed. Skipping."
 fi
 
 # Install the `code` CLI shim so `code .` works from terminal. The cask does not
@@ -736,28 +649,28 @@ if [ -x "$VSCODE_SHIM" ] && ! command -v code &> /dev/null; then
     fi
 fi
 
-# --- [8/10] GitHub CLI ---
+# --- [7/9] GitHub CLI ---
 if ! command -v gh &> /dev/null; then
-    echo "[8/10] Installing GitHub CLI..."
+    echo "[7/9] Installing GitHub CLI..."
     run_step "GitHub CLI" brew install gh && echo "  Done. Version: $(gh --version 2>/dev/null | head -1)"
 else
-    echo "[8/10] GitHub CLI already installed: $(gh --version | head -1). Skipping."
+    echo "[7/9] GitHub CLI already installed: $(gh --version | head -1). Skipping."
 fi
 
-# --- [9/10] Obsidian (optional - knowledge base) ---
+# --- [8/9] Obsidian (optional - knowledge base) ---
 if [ "${ELNORA_SKIP_OPTIONAL_INSTALLS:-}" = "1" ]; then
-    echo "[9/10] Obsidian: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run."
+    echo "[8/9] Obsidian: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run."
 elif [ ! -d "/Applications/Obsidian.app" ]; then
-    echo "[9/10] Installing Obsidian (optional)..."
+    echo "[8/9] Installing Obsidian (optional)..."
     run_step "Obsidian" brew install --cask obsidian && echo "  Done."
 else
-    echo "[9/10] Obsidian already installed. Skipping."
+    echo "[8/9] Obsidian already installed. Skipping."
 fi
 
-# --- [10/10] Projects folder ---
+# --- [9/9] Projects folder ---
 PROJECTS_DIR="$HOME/Documents/Projects"
 if [ ! -d "$PROJECTS_DIR" ]; then
-    echo "[10/10] Creating Projects folder at $PROJECTS_DIR..."
+    echo "[9/9] Creating Projects folder at $PROJECTS_DIR..."
     if mkdir_err="$(mkdir -p "$PROJECTS_DIR" 2>&1)"; then
         echo "  Done."
     else
@@ -773,7 +686,7 @@ if [ ! -d "$PROJECTS_DIR" ]; then
         FAILED_STEPS+=("Projects folder")
     fi
 else
-    echo "[10/10] Projects folder already exists. Skipping."
+    echo "[9/9] Projects folder already exists. Skipping."
 fi
 
 echo ""
@@ -873,14 +786,13 @@ obsidian_version() {
 # count use the same data. Storing in parallel arrays preserves output order
 # and avoids re-running each version probe twice (once for the row, once for
 # the counter).
-SUMMARY_LABELS=("Node.js" "Git" "Python" "VS Code" "Claude Code" "Elnora CLI" "GitHub CLI" "Obsidian")
+SUMMARY_LABELS=("Node.js" "Git" "Python" "VS Code" "Claude Code" "GitHub CLI" "Obsidian")
 SUMMARY_VALUES=(
     "$(node --version 2>/dev/null || true)"
     "$(git --version 2>/dev/null || true)"
     "$(python3 --version 2>/dev/null || true)"
     "$(vscode_version)"
     "$(claude --version 2>/dev/null || true)"
-    "$(elnora --version 2>/dev/null || true)"
     "$(gh --version 2>/dev/null | head -1 || true)"
     "$(obsidian_version)"
 )
@@ -936,8 +848,8 @@ fi
 # VS Code reminder banner. Bright yellow box with blank lines above and
 # below so the "quit fully" rule reads as a separate section, not as
 # another summary row. Real workshop attendees have walked past this in
-# plain-text form and wondered why their newly-installed `claude` / `elnora`
-# commands weren't visible in the VS Code integrated terminal - the answer
+# plain-text form and wondered why their newly-installed `claude`
+# command wasn't visible in the VS Code integrated terminal - the answer
 # is always that VS Code cached its PATH at launch time. Color is gated on
 # `-t 1` (TTY) so log files stay clean.
 if [ -t 1 ]; then
@@ -973,7 +885,7 @@ if [ "${ELNORA_SKIP_HANDOFF:-}" = "1" ] || [ "${ELNORA_HANDOFF_MODE:-}" = "headl
     echo ""
 else
     # ---- Claude auth ----
-    echo "[1/3] Claude Code"
+    echo "[1/2] Claude Code"
     if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
         echo "      ANTHROPIC_API_KEY set - using API key, skipping OAuth."
     elif claude auth status --json 2>/dev/null | grep -q '"loggedIn"[[:space:]]*:[[:space:]]*true'; then
@@ -1071,7 +983,7 @@ else
     echo ""
 
     # ---- GitHub auth ----
-    echo "[2/3] GitHub CLI"
+    echo "[2/2] GitHub CLI"
     if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
         echo "      GH_TOKEN/GITHUB_TOKEN set - skipping OAuth."
     elif gh auth status >/dev/null 2>&1; then
@@ -1098,95 +1010,13 @@ else
         esac
     fi
     echo ""
-
-    # ---- Elnora auth ----
-    echo "[3/3] Elnora CLI"
-    if [ -n "${ELNORA_API_KEY:-}" ]; then
-        echo "      ELNORA_API_KEY set - skipping prompt."
-    elif elnora auth status 2>/dev/null | grep -q '"authenticated"[[:space:]]*:[[:space:]]*true'; then
-        echo "      [OK] Already authenticated."
-        mark_done "auth-elnora"
-    else
-        echo "      Not authenticated. Elnora uses an API key (not browser OAuth)."
-        echo "      Get one at:  https://platform.elnora.ai/settings (API Keys tab)"
-        echo "      [P]aste key now / [s]kip (Elnora MCP will prompt on first use)"
-        printf "      > "
-        read -r answer
-        case "${answer:-s}" in
-            [Pp]*)
-                # Hand off to elnora's interactive prompt instead of
-                # collecting the key here and passing it via --api-key.
-                # Two wins:
-                #  1. No argv exposure. `elnora auth login --api-key <key>`
-                #     would briefly expose the key via `ps -E` to anything
-                #     polling the process table.
-                #  2. No log leak. elnora's promptSecret (see
-                #     elnora-cli/src/lib/prompt.ts) masks input with `*`
-                #     in raw mode, so the `tee "$LOG_FILE"` redirect at
-                #     the top of this script only captures asterisks --
-                #     never the elnora_live_* key.
-                # Note: elnora exits 0 on Ctrl+C cancel too, so we re-check
-                # auth status afterward instead of trusting the exit code.
-                elnora auth login || true
-                if elnora auth status 2>/dev/null | grep -q '"authenticated"[[:space:]]*:[[:space:]]*true'; then
-                    echo "      [OK] Saved."
-                    mark_done "auth-elnora"
-                else
-                    echo "      [SKIP] Not authenticated. Try manually:  elnora auth login"
-                fi
-                ;;
-            *)
-                echo "      [SKIP] To do later:  elnora auth login"
-                ;;
-        esac
-    fi
-    echo ""
-
-    # ---- Wire Elnora plugin into ~/.claude (idempotent JSON merge) ----
-    # `elnora setup claude` registers the elnora-plugins marketplace in
-    # ~/.claude/plugins/known_marketplaces.json and sets
-    # enabledPlugins["elnora@elnora-plugins"]=true in ~/.claude/settings.json.
-    # The starter kit's project-scope .claude/settings.json already enables
-    # the plugin for THIS directory, so this step only matters for using
-    # Elnora skills OUTSIDE this repo. It also clears the `elnora doctor`
-    # "Plugin enabled - settings.json not found" warning, which only reads
-    # user-scope settings.
-    #
-    # NOTE: this does NOT touch MCP. The Elnora MCP server's auth flow is
-    # unrelated and depends on upstream Claude Code header bugs.
-    echo "[Plugin] Wiring Elnora plugin into Claude Code config"
-    if ! command -v elnora >/dev/null 2>&1; then
-        echo "      [SKIP] 'elnora' command not on PATH yet."
-        echo "             Open a new terminal and run 'elnora setup claude'"
-        echo "             once Claude Code has been launched at least once."
-    elif [ -d "$HOME/.claude" ]; then
-        if setup_out=$(elnora setup claude 2>&1); then
-            echo "      [OK] Plugin enabled user-globally."
-        else
-            echo "      [WARN] 'elnora setup claude' returned non-zero. Output:"
-            printf '%s\n' "$setup_out" | sed 's/^/             /'
-            echo "             Non-fatal - the plugin still works for THIS"
-            echo "             project via .claude/settings.json in this repo."
-        fi
-    else
-        echo "      [SKIP] ~/.claude/ does not exist yet."
-        echo "             This is normal if you haven't launched Claude Code"
-        echo "             yet in this terminal session. The Elnora plugin is"
-        echo "             already enabled for THIS project via the repo's"
-        echo "             .claude/settings.json, so it activates the moment"
-        echo "             you open Claude Code in this directory."
-        echo "             To also enable it user-globally (for use outside"
-        echo "             this project), run 'elnora setup claude' after"
-        echo "             your first 'claude' launch."
-    fi
-    echo ""
 fi
 
 echo "==========================================="
 echo "  Quick PATH note"
 echo "==========================================="
 echo ""
-echo "  The 'claude' and 'elnora' commands are at ~/.local/bin/."
+echo "  The 'claude' command is at ~/.local/bin/."
 echo "  - In any terminal opened AFTER this install: works automatically."
 echo "  - In a terminal opened BEFORE this install (rare):"
 echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
@@ -1202,7 +1032,7 @@ echo ""
 # subsequent workflow steps (handoff-e2e assertions, install-smoke-test
 # verifications, bootstrap-e2e checks) see every binary Phase 1 installed.
 # Without this, a fresh shell in the next step inherits the runner's job-
-# start PATH snapshot, which doesn't include ~/.local/bin (Claude/Elnora),
+# start PATH snapshot, which doesn't include ~/.local/bin (Claude Code),
 # brew prefix, or anything brew added after job start. No-op outside GH
 # Actions (variable unset).
 if [ -n "${GITHUB_PATH:-}" ]; then
@@ -1291,9 +1121,6 @@ if command -v claude >/dev/null 2>&1; then
         # because nobody's there to approve tool calls).
         #
         # Requires ANTHROPIC_API_KEY in env so claude skips browser OAuth.
-        # Pre-staged ELNORA_API_KEY in env lets Claude skip the "ask user
-        # for the API key" step in INSTALL_FOR_AGENTS.md (the doc handles
-        # that branch explicitly).
 
         # Hard requirement for headless mode: the integrity marker MUST be
         # present. The marker is what proves the doc claude is about to

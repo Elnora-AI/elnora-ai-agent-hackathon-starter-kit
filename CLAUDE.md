@@ -6,8 +6,8 @@ tight and useful. Update it as the project evolves.
 
 > **For agents handing off from the install script**: see
 > [`INSTALL_FOR_AGENTS.md`](INSTALL_FOR_AGENTS.md) for the Phase 2 setup
-> sequence (verify versions, collect Elnora API key, smoke test, knowledge
-> base). If something looks half-done, see [`RECOVERY.md`](RECOVERY.md).
+> sequence (verify versions, smoke test, knowledge base). If something looks
+> half-done, see [`RECOVERY.md`](RECOVERY.md).
 
 ---
 
@@ -96,9 +96,6 @@ repo before requesting info from the user.
 **Use the plugins.** See `TOOLS.md` for installed plugins and what they're for.
 Invoke slash commands directly (e.g., `/commit`) rather than reimplementing
 them.
-
-**Elnora CLI is available globally.** `elnora --version` should work in any
-terminal. Elnora's MCP tools are pre-wired in `.mcp.json` — OAuth on first use.
 
 ---
 

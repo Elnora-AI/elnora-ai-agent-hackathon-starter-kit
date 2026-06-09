@@ -1,8 +1,8 @@
 # Elnora AI Agent Hackathon Starter Kit
 
-One-command setup that installs and wires together [Elnora AI](https://elnora.ai),
-Claude Code, and the supporting dev tools (Python, Node.js, Git, GitHub CLI,
-VS Code, Obsidian) you need to build AI agents from the terminal.
+One-command setup that installs and wires together Claude Code and the
+supporting dev tools (Python, Node.js, Git, GitHub CLI, VS Code, Obsidian) you
+need to build AI agents from the terminal.
 
 Built for the **Elnora & EFS AI hackathon workshop**: run one command and you're
 at a working agent environment in 15–25 minutes, no setup rabbit holes — so you
@@ -11,19 +11,18 @@ spend the workshop building your agent, not fighting installers.
 ## Who this is for
 
 **Hackathon participants** who want the fastest path from a fresh laptop to a
-working Claude Code + Elnora AI environment, without chasing installers or
-learning what `brew` is on day one.
+working Claude Code environment, without chasing installers or learning what
+`brew` is on day one.
 
 Also a useful starting point for anyone bootstrapping a Claude Code project,
 validating an existing setup, or using this as a template to build their own
-agents and plugins. The Elnora pieces are optional.
+agents and plugins.
 
 ## Requirements
 
 - macOS or Windows 10/11 with admin rights (Homebrew or WinGet need them).
 - Active [Claude Pro or Max](https://claude.com/upgrade) subscription.
 - [GitHub account](https://github.com/signup), used in Phase 2 to create your private repo.
-- [Elnora API key](https://platform.elnora.ai/settings) (optional; skip for the Claude-Code-only flow).
 
 ## Install
 
@@ -45,11 +44,11 @@ A few things to expect:
 
 - macOS will prompt for your Mac login password (Homebrew). No characters appear as you type. Normal.
 - A browser opens to sign into Claude Pro/Max. Sign in, then return to the terminal.
-- Claude takes over and asks for your Elnora API key.
+- Claude takes over and finishes Phase 2 setup.
 
-The script downloads installers from `raw.githubusercontent.com`,
-`claude.ai`, and `cli.elnora.ai` over HTTPS without separate checksum
-verification. Running it means trusting those sources.
+The script downloads installers from `raw.githubusercontent.com` and
+`claude.ai` over HTTPS without separate checksum verification. Running it
+means trusting those sources.
 
 ## If it stops, just run it again
 
@@ -83,21 +82,18 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 1. **Phase 1 install (~5–10 min):** prompts for a name for your workspace
    (used for both the local folder and the GitHub repo we'll create later),
    clones the repo to `~/Documents/<your-name>/`, and installs Claude Code,
-   the Elnora CLI, Node.js, Git, Python, VS Code, GitHub CLI, and Obsidian.
-   Existing installs are skipped. Output goes to `~/claude-starter-install.log`.
-2. **Auth:** Claude Pro/Max (required), GitHub CLI (skippable), Elnora CLI
-   (skippable; the MCP prompts on first use).
+   Node.js, Git, Python, VS Code, GitHub CLI, and Obsidian. Existing installs
+   are skipped. Output goes to `~/claude-starter-install.log`.
+2. **Auth:** Claude Pro/Max (required), GitHub CLI (skippable).
 3. **Phase 2 handoff (~3–5 min):** Claude verifies versions, creates your
    **private GitHub repo**, pushes the kit to it, runs a smoke test, and
    optionally configures a knowledge base.
-4. **Verification:** Claude generates a sample protocol.
 
 ## What gets installed
 
 | Tool | Role |
 |------|------|
 | Claude Code | Orchestrating agent. Your interface. |
-| Elnora CLI + MCP | Generates protocols and runs scientific work. |
 | Python 3, Node.js | Runtimes for plugins, MCP servers, scripts. |
 | Git, GitHub CLI | Version control and Phase 2 repo creation. |
 | VS Code | Editor for files Claude produces. |
@@ -115,7 +111,7 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 ├── marketplace-plugins.md                 # Recommended plugin marketplaces
 ├── install.sh / install.ps1               # Bootstrap entry points
 ├── setup-mac.sh / setup-windows.ps1       # Phase 1 setup scripts
-├── .env.template                          # ELNORA_API_KEY placeholder
+├── .env.template                          # Environment variable placeholders
 ├── .mcp.json                              # MCP server configuration
 ├── .gitignore
 ├── LICENSE                                # MIT
@@ -161,20 +157,14 @@ Defaults in `.claude/settings.json`:
 
 Set values to `false` or `"0"` to disable.
 
-## Elnora components
-
-- [Elnora CLI](https://cli.elnora.ai), `elnora` command, available globally
-- [`elnora-plugins`](https://github.com/Elnora-AI/elnora-plugins) plugin marketplace
-- Elnora MCP server, configured in `.mcp.json`
-
 ## Need custom integrations?
 
-This kit is the foundation: Claude Code wired up to Elnora, ready to
-generate protocols and run lab workflows. It does not ship with integrations
-to your specific instruments, LIMS, ELN, or internal systems.
+This kit is the foundation: Claude Code set up and ready to build agents. It
+does not ship with integrations to your specific instruments, LIMS, ELN, or
+internal systems.
 
 We're forward-deployed engineers who build those for biotech, pharma, and
-techbio teams. If you want Elnora connected to the tools you actually use
+techbio teams. If you want your agents connected to the tools you actually use
 (instrument data, sample tracking, inventory, internal databases, anything
 else), we'll scope it, build it on top of this repo, and get your first
 agents running in production.
