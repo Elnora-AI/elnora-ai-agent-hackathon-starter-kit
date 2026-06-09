@@ -4,9 +4,8 @@ One command sets up everything you need to build AI agents on your laptop — yo
 coding agent (**Claude Code or Codex**, your choice) plus the dev tools that go
 with it: Python, Node.js, Git, VS Code, and Obsidian.
 
-Built for the **Elnora AI agent hackathon**: run one command and you have a
-working agent environment in 15–25 minutes — so you spend the time building, not
-installing.
+Built for the **Elnora AI agent hackathon**: run one command, follow the
+instructions, and get your first agents up and running.
 
 ## Who this is for
 
@@ -37,10 +36,11 @@ curl -fsSL https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon
 irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starter-kit/main/install.ps1 | iex
 ```
 
-Runtime is 15–25 minutes on a fresh machine, faster on re-runs.
-
 A few things to expect:
 
+- **Before you start, sign into your accounts in a browser and leave the tabs
+  open** — your coding agent (Claude or ChatGPT for Codex) and GitHub. This
+  confirms the accounts exist and makes the sign-in steps go through smoothly.
 - It first asks which agent you want: **Claude Code, Codex, or both.** (Pick
   "both" and it installs both, then asks which one finishes setup right now.)
 - macOS will prompt for your Mac login password (Homebrew). No characters appear as you type. Normal.
@@ -54,9 +54,9 @@ means trusting those sources.
 ## If it stops, just run it again
 
 Stopped, closed the terminal, or sign-in didn't go through? **Just run it
-again.** It resumes where it left off — already-installed tools are skipped in
-seconds. You'll see `Resuming where a previous run left off` at the top, so you
-know it's continuing, not starting over.
+again.** It resumes where it left off — already-installed tools are skipped.
+You'll see `Resuming where a previous run left off` at the top, so you know it's
+continuing, not starting over.
 
 ```bash
 # macOS
@@ -88,26 +88,42 @@ bash setup-mac.sh --fresh
 
 ## What happens
 
-1. **Phase 1 install (~5–10 min):** asks which agent you want (Claude Code /
-   Codex / both) and a name for your workspace (used for both the local folder
-   and the GitHub repo we'll create later), clones the repo to
-   `~/Documents/<your-name>/`, and installs your chosen agent(s) plus Node.js,
-   Git, Python, VS Code, GitHub CLI, and Obsidian. Existing installs are
-   skipped. Output goes to `~/claude-starter-install.log`.
+1. **Phase 1 install:** asks which agent you want (Claude Code / Codex / both)
+   and a name for your workspace (used for both the local folder and the GitHub
+   repo we'll create later), clones the repo to `~/Documents/<your-name>/`, and
+   installs your chosen agent(s) plus Homebrew/WinGet, Node.js, Git, Python, VS
+   Code, GitHub CLI, and Obsidian. Existing installs are skipped. Output goes to
+   `~/claude-starter-install.log`.
 2. **Auth:** your agent (required), GitHub CLI (skippable).
-3. **Phase 2 handoff (~3–5 min):** your agent verifies versions, creates your
-   **private GitHub repo**, pushes the kit to it, runs a smoke test, and
-   optionally configures a knowledge base.
+3. **Phase 2 handoff:** your agent verifies versions, creates your **private
+   GitHub repo**, pushes the kit to it, runs a smoke test, and optionally sets up
+   a knowledge base and the Vercel / Google Cloud integrations.
 
 ## What gets installed
 
+Phase 1 installs these on every run (skipping anything you already have):
+
 | Tool | Role |
 |------|------|
-| Claude Code and/or Codex | Orchestrating agent. Your interface. (You pick at install time.) |
-| Python 3, Node.js | Runtimes for plugins, MCP servers, scripts. |
-| Git, GitHub CLI | Version control and Phase 2 repo creation. |
+| Claude Code and/or Codex | Your coding agent. Your interface. (You pick at install time.) |
+| Homebrew (macOS) / WinGet (Windows) | Package manager used to install everything below. |
+| Node.js | Runtime for plugins, MCP servers, and the agent CLIs. |
+| Python 3 | Runtime for scripts and examples. |
+| Git | Version control. |
+| GitHub CLI (`gh`) | Creates and pushes your private repo in Phase 2. |
 | VS Code | Editor for files your agent produces. |
 | Obsidian | Markdown knowledge-base viewer. |
+
+In Phase 2, your agent offers to help you set up the following — it only
+installs each one **if you say yes**:
+
+| Tool | Role |
+|------|------|
+| Vercel CLI (`vercel`) | Deploy apps and use v0 to generate UIs. |
+| Google Cloud CLI (`gcloud`) | Run the Vertex AI image, video, and voiceover examples. |
+
+Your agent can also set up a knowledge base (Obsidian vault) and Chrome DevTools
+(browser control) in Phase 2 — see those sections below.
 
 ## What's already wired up
 
