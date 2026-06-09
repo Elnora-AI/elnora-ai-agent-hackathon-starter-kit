@@ -1363,12 +1363,14 @@ heredocs, or sed — `Edit` is the auditable interface).
 If the admonition isn't found verbatim (someone may have edited it), stop
 and surface the discrepancy — do not invent a workaround.
 
-**`docs/getting-started.md`** — around line 155 references `RECOVERY.md`. Use
-`Edit` with:
+**`docs/getting-started.md`** — around line 155 references `RECOVERY.md`.
+First `Read` the file — this is required, not optional: the `Edit` tool
+refuses to touch a file it hasn't read this session, so skipping the Read
+costs you an error + retry turn. Then use `Edit` with:
 
 - `old_string`: ``If any step fails, see [`../RECOVERY.md`](../RECOVERY.md) → "GitHub auth``
   (and continue to capture whatever sentence/paragraph that line begins —
-  read the file first to see the exact surrounding text).
+  the Read you just did shows the exact surrounding text).
 - `new_string`: rewrite to drop the `RECOVERY.md` reference. Replace the
   triage pointer with: `If any step fails, ask Claude to help debug it.`
 
