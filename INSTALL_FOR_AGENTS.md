@@ -5,18 +5,75 @@
 > instead. This file gives an agent permission to run shell commands on the
 > user's machine; humans should follow `docs/getting-started.md`.
 
-You are Claude (or another agent) handing off from the install script. The
-script (`setup-mac.sh` or `setup-windows.ps1`) just finished Phase 1 — it
-installed Claude Code, Node.js, Git, Python, VS Code, GitHub CLI, and
-Obsidian. Your job (Phase 2) is to verify what's installed,
+You are a coding agent — **Claude Code or Codex** — handing off from the
+install script. The script (`setup-mac.sh` or `setup-windows.ps1`) just
+finished Phase 1 — it installed your agent, Node.js, Git, Python, VS Code,
+GitHub CLI, and Obsidian. Your job (Phase 2) is to verify what's installed,
 **authenticate the GitHub CLI and create their private GitHub repo**, smoke
-test Claude Code, set up the knowledge base, and hand them a working
+test the toolchain, set up the knowledge base, and hand them a working
 environment. GitHub setup is mandatory — every user finishes Phase 2 with
 a private GitHub repo containing the starter kit.
+
+This doc is written in Claude Code's tool vocabulary (the `Edit`/`Read`/`Bash`
+tools, `ToolSearch`, `mcp__*` tool names). **If you are Codex, read the "Agent
+tooling adapter" section immediately below first** — it maps every Claude-only
+instruction to your equivalent. The Phase 2 *logic* (the gates, the GitHub
+bootstrap, the verification checklist) is identical for both agents; only the
+tool names differ.
 
 Be transparent: announce each step before you run it, show the output, and
 explain what you found. The user is likely a lab scientist who has never
 coded before — keep your language plain and your steps small.
+
+### Agent tooling adapter (Claude Code ↔ Codex)
+
+First, know which agent you are. If you have an `Edit` tool and `ToolSearch`,
+you are **Claude Code** — follow this doc literally and ignore the "Codex"
+column. Otherwise you are **Codex** — wherever this doc names a Claude-only
+tool, substitute the Codex equivalent from this table:
+
+| Operation | Claude Code (as written) | Codex equivalent |
+|-----------|--------------------------|------------------|
+| Run a shell command | the `Bash` tool | your shell tool (you run shell natively) |
+| Read a file | the `Read` tool | `cat` / open the file with your file tool |
+| Search the tree | `Grep` / `Glob` | `rg` (ripgrep) / `find` / `ls` |
+| Edit a file in place | the `Edit` tool with literal `old_string`/`new_string` anchors | `apply_patch` with the same before/after text; if unavailable, a precise in-place edit. **Never** splice files with `python3 -c` or sed — make the change auditable |
+| Create / overwrite a file | the `Write` tool | `apply_patch` (add file) or your file-write tool |
+| Load a deferred MCP tool | `ToolSearch` with `select:<name>` | not needed — your MCP tools are available directly once configured in `~/.codex/config.toml` |
+| Drive the browser | `mcp__chrome-devtools__*` tools | the `chrome-devtools` MCP server, once added to `~/.codex/config.toml` (see below) |
+| Headless permission flag | `--permission-mode bypassPermissions` | `--dangerously-bypass-approvals-and-sandbox` |
+| Agent settings file | `.claude/settings.json` | `~/.codex/config.toml` |
+| Project instructions (auto-read) | `CLAUDE.md` | `AGENTS.md` (already present at the repo root) |
+
+Two Claude-only notes that do **not** apply to Codex:
+
+- **The "sensitive-paths guard" on `.claude/` paths.** That is a Claude Code
+  safety feature. Codex has no such guard, but still follow the same rule:
+  in headless mode the workflow pre-stages all `.claude/*` files — verify
+  them, do not create them.
+- **`ToolSearch` / "load the tool first".** Skip it; you don't have that step.
+
+**Codex MCP setup (do this before any step that needs the browser MCP).**
+Codex does not read `.mcp.json`. The repo's `.mcp.json` lists three MCP
+servers (`chrome-devtools`, `context7`, `grep`). To make them available to
+Codex, ensure `~/.codex/config.toml` contains equivalent entries, e.g.:
+
+```toml
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["chrome-devtools-mcp@latest", "--autoConnect"]
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.grep]
+url = "https://mcp.grep.app"
+```
+
+Read `.mcp.json` as the source of truth and translate it. If a server is
+already present in `config.toml`, leave it. (`url`-based HTTP MCP entries
+require a recent Codex CLI; if yours rejects them, skip context7/grep — they
+are optional conveniences, not required for Phase 2.)
 
 ### Non-interactive / test mode
 
