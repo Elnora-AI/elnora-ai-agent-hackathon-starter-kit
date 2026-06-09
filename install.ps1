@@ -102,11 +102,74 @@ if ($WorkspaceName -notmatch $nameRegex) {
     throw "Invalid workspace name: $WorkspaceName"
 }
 
+# ---- Coding agent selection -----------------------------------------------
+# Works with two coding agents: Claude Code (Anthropic) and Codex (OpenAI).
+# Phase 1 installs whichever you pick; Phase 2 ("finish setup") is driven by
+# exactly ONE agent. Resolution: $env:ELNORA_AGENT -> prompt -> default claude.
+# When "both", a second choice ($env:ELNORA_HANDOFF_AGENT) picks who finishes.
+function Get-NormAgent($v) { ($v -replace '\s','').ToLower() }
+
+if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_AGENT)) {
+    $Agent = Get-NormAgent $env:ELNORA_AGENT
+} else {
+    Write-Host "Which coding agent do you want to use?"
+    Write-Host "  1) Claude Code   (Anthropic; needs a Claude Pro/Max plan or API key)"
+    Write-Host "  2) Codex         (OpenAI; needs a ChatGPT Plus/Pro plan or API key)"
+    Write-Host "  3) Both          (install both; you'll pick which finishes setup)"
+    Write-Host ""
+    while ($true) {
+        $reply = Read-Host -Prompt "Agent [1]"
+        if ([string]::IsNullOrWhiteSpace($reply)) { $reply = "1" }
+        $n = Get-NormAgent $reply
+        if ($n -in @("1","claude"))     { $Agent = "claude"; break }
+        elseif ($n -in @("2","codex"))  { $Agent = "codex";  break }
+        elseif ($n -in @("3","both"))   { $Agent = "both";   break }
+        else { Write-Host "  [!] Enter 1, 2, or 3 (or claude / codex / both)." -ForegroundColor Yellow }
+    }
+    Write-Host ""
+}
+
+if ($Agent -notin @("claude","codex","both")) {
+    throw "ELNORA_AGENT='$Agent' is invalid. Use: claude | codex | both."
+}
+
+if ($Agent -eq "both") {
+    if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_HANDOFF_AGENT)) {
+        $HandoffAgent = Get-NormAgent $env:ELNORA_HANDOFF_AGENT
+    } else {
+        Write-Host "You're installing both. Which one should finish setup right now?"
+        Write-Host "  1) Claude Code"
+        Write-Host "  2) Codex"
+        Write-Host "  (The other stays installed and ready to launch anytime.)"
+        Write-Host ""
+        while ($true) {
+            $reply = Read-Host -Prompt "Finish setup with [1]"
+            if ([string]::IsNullOrWhiteSpace($reply)) { $reply = "1" }
+            $n = Get-NormAgent $reply
+            if ($n -in @("1","claude"))    { $HandoffAgent = "claude"; break }
+            elseif ($n -in @("2","codex")) { $HandoffAgent = "codex";  break }
+            else { Write-Host "  [!] Enter 1 or 2 (or claude / codex)." -ForegroundColor Yellow }
+        }
+        Write-Host ""
+    }
+} else {
+    $HandoffAgent = $Agent
+}
+
+if ($HandoffAgent -notin @("claude","codex")) {
+    throw "ELNORA_HANDOFF_AGENT='$HandoffAgent' is invalid. Use: claude | codex."
+}
+
+# Pass the choice through to setup-windows.ps1 via the process environment.
+$env:ELNORA_AGENT = $Agent
+$env:ELNORA_HANDOFF_AGENT = $HandoffAgent
+
 $TargetDir = Join-Path $env:USERPROFILE "Documents\$WorkspaceName"
 
+$agentLabel = switch ($Agent) { "claude" { "Claude Code" } "codex" { "Codex" } "both" { "Claude Code + Codex" } }
 Write-Host "This will:"
 Write-Host "  1. Download the starter kit to $TargetDir"
-Write-Host "  2. Run setup-windows.ps1 (installs Claude Code + dev tools)"
+Write-Host "  2. Run setup-windows.ps1 (installs $agentLabel + dev tools)"
 Write-Host ""
 
 # Always wipe + re-extract on every run. If the customer is running this
