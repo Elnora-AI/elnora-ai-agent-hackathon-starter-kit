@@ -53,10 +53,10 @@ means trusting those sources.
 
 ## If it stops, just run it again
 
-The script stopped, you closed the terminal, or sign-in didn't go through?
-**Just run it again** with the command below. It resumes right where it left
-off — already-installed tools are skipped in seconds and you land back at the
-step that stopped you. Nothing is lost or repeated.
+Stopped, closed the terminal, or sign-in didn't go through? **Just run it
+again.** It resumes where it left off — already-installed tools are skipped in
+seconds. You'll see `Resuming where a previous run left off` at the top, so you
+know it's continuing, not starting over.
 
 ```bash
 # macOS
@@ -68,22 +68,23 @@ bash setup-mac.sh
 .\setup-windows.ps1
 ```
 
-When it restarts you'll see `Resuming where a previous run left off` at the
-top, so you know it's continuing — not starting over.
+Re-running the install one-liner is safe too: it remembers the workspaces you
+already started and offers to resume one instead of creating a duplicate folder.
 
-**Re-running the install one-liner is safe too.** If you've lost track of the
-folder and re-run the `curl … | bash` (or `irm … | iex`) command from the top,
-it remembers the workspace(s) you already set up and offers to resume one
-instead of quietly creating a second folder — so you won't end up with a pile
-of half-finished copies. Pick the one it lists, or choose "new" if you really
-want a fresh workspace.
+The most common stopping point is the **sign-in** step — make sure your agent
+account is active, then re-run and complete the login when the browser opens.
 
-The most common stopping point is the **Claude sign-in** step. If that's where
-you are, make sure you have an active [Claude Pro/Max](https://claude.com/upgrade)
-account, then re-run and complete the login when the browser opens.
+Want a completely clean run instead? Add `--fresh`:
 
-Want a completely clean run instead? Add `--fresh` to start from scratch:
-`bash setup-mac.sh --fresh` (macOS) or `.\setup-windows.ps1 --fresh` (Windows).
+```bash
+# macOS
+bash setup-mac.sh --fresh
+```
+
+```powershell
+# Windows
+.\setup-windows.ps1 --fresh
+```
 
 ## What happens
 
@@ -107,6 +108,17 @@ Want a completely clean run instead? Add `--fresh` to start from scratch:
 | Git, GitHub CLI | Version control and Phase 2 repo creation. |
 | VS Code | Editor for files your agent produces. |
 | Obsidian | Markdown knowledge-base viewer. |
+
+## What's already wired up
+
+The kit comes pre-connected so these work on first launch:
+
+- **MCP servers:** Chrome DevTools (control a browser), Context7 (live docs),
+  grep (search public GitHub), Estonian (language tools).
+- **Vercel + v0 plugin:** deploy and generate UIs with `/vercel:deploy`,
+  `/vercel:v0`, and more.
+- **Vertex AI examples** in `examples/vertex/`: generate images, video, and
+  voiceover using your own Google Cloud project.
 
 ## Repository layout
 
@@ -179,21 +191,6 @@ Defaults in `.claude/settings.json`:
 - `enableAllProjectMcpServers: true` auto-approves every MCP server in [`.mcp.json`](.mcp.json) (Chrome DevTools, Context7, grep, Estonian) so they're connected and usable on first launch — no per-server approval prompt. Remove this key if you'd rather approve each server manually.
 
 Set values to `false` or `"0"` to disable.
-
-## Need custom integrations?
-
-This kit is the foundation: Claude Code set up and ready to build agents. It
-does not ship with integrations to your specific instruments, LIMS, ELN, or
-internal systems.
-
-We're forward-deployed engineers who build those for biotech, pharma, and
-techbio teams. If you want your agents connected to the tools you actually use
-(instrument data, sample tracking, inventory, internal databases, anything
-else), we'll scope it, build it on top of this repo, and get your first
-agents running in production.
-
-Email [carmen.kivisild@elnora.ai](mailto:carmen.kivisild@elnora.ai) to start
-a conversation.
 
 ## License
 
