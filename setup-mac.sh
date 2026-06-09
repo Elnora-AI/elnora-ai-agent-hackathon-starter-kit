@@ -973,8 +973,16 @@ else
     # own first launch.
     if [ "$ELNORA_HANDOFF_AGENT" = "codex" ]; then
     echo "[1/2] Codex"
-    if [ -n "${OPENAI_API_KEY:-}${CODEX_API_KEY:-}" ]; then
-        echo "      OPENAI_API_KEY/CODEX_API_KEY set - skipping browser login."
+    if [ -n "${OPENAI_API_KEY:-}${CODEX_API_KEY:-}" ] && [ ! -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]; then
+        # Codex does not pick these env vars up implicitly (CODEX_API_KEY is
+        # honored by `codex exec` only) — persist a real login so the
+        # interactive session that follows actually authenticates.
+        if printf '%s' "${OPENAI_API_KEY:-$CODEX_API_KEY}" | codex login --with-api-key >/dev/null 2>&1; then
+            echo "      OPENAI_API_KEY/CODEX_API_KEY set - logged in with API key."
+            mark_done "auth-codex"
+        else
+            echo "      [WARN] API-key login failed - Codex will prompt on first launch."
+        fi
     elif [ -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]; then
         echo "      [OK] Already signed in."
         mark_done "auth-codex"
@@ -1411,6 +1419,14 @@ PY
             # of --permission-mode bypassPermissions: nobody is there to approve
             # tool calls in headless mode. Gated by the same CI / local-opt-in
             # checks above.
+            #
+            # Auth: codex exec does NOT read OPENAI_API_KEY implicitly — it
+            # only honors CODEX_API_KEY for a single non-interactive run
+            # (developers.openai.com/codex/environment-variables). Map the
+            # standard var so CI can keep providing OPENAI_API_KEY.
+            if [ -z "${CODEX_API_KEY:-}" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
+                export CODEX_API_KEY="$OPENAI_API_KEY"
+            fi
             codex exec "$HANDOFF_PROMPT" --dangerously-bypass-approvals-and-sandbox 2>&1 \
               | tee "$TRANSCRIPT" > /dev/null
             rc=${PIPESTATUS[0]}

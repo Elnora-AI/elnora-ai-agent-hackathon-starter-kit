@@ -1233,8 +1233,19 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
     if ($HandoffAgent -eq 'codex') {
     Write-Host "[1/2] Codex"
     $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
-    if ($env:OPENAI_API_KEY -or $env:CODEX_API_KEY) {
-        Write-Host "      OPENAI_API_KEY/CODEX_API_KEY set -- skipping browser login."
+    if (($env:OPENAI_API_KEY -or $env:CODEX_API_KEY) -and -not (Test-Path -LiteralPath (Join-Path $codexHome 'auth.json'))) {
+        # Codex does not pick these env vars up implicitly (CODEX_API_KEY is
+        # honored by `codex exec` only) -- persist a real login so the
+        # interactive session that follows actually authenticates.
+        $apiKey = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { $env:CODEX_API_KEY }
+        $apiKey | codex login --with-api-key *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "      OPENAI_API_KEY/CODEX_API_KEY set -- logged in with API key."
+            Set-Checkpoint "auth-codex"
+        } else {
+            Write-Host "      [WARN] API-key login failed -- Codex will prompt on first launch."
+        }
+        $global:LASTEXITCODE = 0
     } elseif (Test-Path -LiteralPath (Join-Path $codexHome 'auth.json')) {
         Write-Host "      [OK] Already signed in."
         Set-Checkpoint "auth-codex"
@@ -1664,6 +1675,14 @@ if ($agentAvailable) {
             # --dangerously-bypass-approvals-and-sandbox is Codex's equivalent of
             # --permission-mode bypassPermissions (nobody is there to approve
             # tool calls). Gated by the same CI / local-opt-in checks above.
+            #
+            # Auth: codex exec does NOT read OPENAI_API_KEY implicitly -- it
+            # only honors CODEX_API_KEY for a single non-interactive run
+            # (developers.openai.com/codex/environment-variables). Map the
+            # standard var so CI can keep providing OPENAI_API_KEY.
+            if (-not $env:CODEX_API_KEY -and $env:OPENAI_API_KEY) {
+                $env:CODEX_API_KEY = $env:OPENAI_API_KEY
+            }
             & codex exec $HandoffPrompt --dangerously-bypass-approvals-and-sandbox 2>&1 `
               | Tee-Object -FilePath $transcript | Out-Null
             $rc = $LASTEXITCODE
