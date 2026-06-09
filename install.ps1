@@ -63,6 +63,11 @@ $userLower = ($env:USERNAME -as [string]).ToLowerInvariant() -replace '\s+', '-'
 if ([string]::IsNullOrWhiteSpace($userLower)) { $userLower = 'me' }
 $defaultName = "$userLower-agents"
 
+# >>> ELNORA_REGISTRY_LIB_START >>>
+# Everything between these two markers is self-contained (no dependency on the
+# rest of this script) so tests/registry/registry_test.ps1 can extract and
+# dot-source it directly, exercising the REAL code instead of a drifting copy.
+# If you add a registry helper, keep it inside the markers.
 # ---- Workspace registry ---------------------------------------------------
 # Single source of truth for "which folder is the real workspace", so a
 # stalled-and-retried install resumes the same folder instead of spawning
@@ -71,6 +76,10 @@ $defaultName = "$userLower-agents"
 # last_run); comment lines start with '#'. Mirrors install.sh.
 $RegistryDir  = Join-Path $env:APPDATA 'elnora'
 $RegistryFile = Join-Path $RegistryDir 'workspaces.tsv'
+
+# Current UTC timestamp. Factored out (mirrors install.sh's _registry_now) so
+# the registry unit test can stub it for deterministic assertions.
+function Get-RegistryNow { (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
 
 function Get-RegistryEntries {
     if (-not (Test-Path -LiteralPath $RegistryFile)) { return @() }
@@ -110,7 +119,7 @@ function Write-Registry {
 # Append or update one entry, preserving its original Created timestamp.
 function Set-RegistryEntry {
     param([string]$Name, [string]$Path)
-    $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $now = Get-RegistryNow
     $entries = @(Get-RegistryEntries)
     $created = $now
     $existing = $entries | Where-Object { $_.Path -eq $Path } | Select-Object -First 1
@@ -180,6 +189,7 @@ function Invoke-ResumeMenu {
         }
     }
 }
+# <<< ELNORA_REGISTRY_LIB_END <<<
 
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Cyan
