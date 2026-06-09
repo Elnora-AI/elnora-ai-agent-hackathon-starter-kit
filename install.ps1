@@ -247,7 +247,7 @@ function Get-NormAgent($v) { ($v -replace '\s','').ToLower() }
 
 if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_AGENT)) {
     $Agent = Get-NormAgent $env:ELNORA_AGENT
-} else {
+} elseif ([Environment]::UserInteractive -and $Host.UI.RawUI) {
     Write-Host "Which coding agent do you want to use?"
     Write-Host "  1) Claude Code   (Anthropic; needs a Claude Pro/Max plan or API key)"
     Write-Host "  2) Codex         (OpenAI; needs a ChatGPT Plus/Pro plan or API key)"
@@ -263,6 +263,11 @@ if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_AGENT)) {
         else { Write-Host "  [!] Enter 1, 2, or 3 (or claude / codex / both)." -ForegroundColor Yellow }
     }
     Write-Host ""
+} else {
+    # Non-interactive with no $env:ELNORA_AGENT (piped/headless run) -- default
+    # to Claude Code instead of blocking on Read-Host, mirroring install.sh's
+    # /dev/tty gate.
+    $Agent = "claude"
 }
 
 if ($Agent -notin @("claude","codex","both")) {
@@ -272,7 +277,7 @@ if ($Agent -notin @("claude","codex","both")) {
 if ($Agent -eq "both") {
     if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_HANDOFF_AGENT)) {
         $HandoffAgent = Get-NormAgent $env:ELNORA_HANDOFF_AGENT
-    } else {
+    } elseif ([Environment]::UserInteractive -and $Host.UI.RawUI) {
         Write-Host "You're installing both. Which one should finish setup right now?"
         Write-Host "  1) Claude Code"
         Write-Host "  2) Codex"
@@ -287,6 +292,9 @@ if ($Agent -eq "both") {
             else { Write-Host "  [!] Enter 1 or 2 (or claude / codex)." -ForegroundColor Yellow }
         }
         Write-Host ""
+    } else {
+        # Non-interactive with no $env:ELNORA_HANDOFF_AGENT -- default to Claude.
+        $HandoffAgent = "claude"
     }
 } else {
     $HandoffAgent = $Agent
@@ -368,8 +376,10 @@ if (Test-Path $TargetDir) {
     } else {
         Remove-Item -Path $stash -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "Wiping for a fresh install (system tools like Claude, Node, Python are kept)..." -ForegroundColor Gray
-    Remove-Item -Path $TargetDir -Recurse -Force
+    # NOTE: we do NOT wipe $TargetDir here. The wipe happens only AFTER the
+    # new copy has downloaded and verified (see below), so a failed download
+    # on flaky conference/hotel wifi can never leave the user with no
+    # workspace -- and no stashed user data -- at all.
 }
 
 Write-Host "Downloading starter kit zip..." -ForegroundColor Green
@@ -401,6 +411,15 @@ try {
     }
 
     New-Item -ItemType Directory -Path (Split-Path $TargetDir -Parent) -Force -ErrorAction SilentlyContinue | Out-Null
+    # The fresh copy is downloaded and verified -- only now is it safe to
+    # remove the previous install and swap the new one in. Doing the wipe
+    # here (not before the download) means a failed download leaves the
+    # existing workspace untouched. System tools like Claude, Node, Python
+    # live outside $TargetDir and are never touched.
+    if (Test-Path $TargetDir) {
+        Write-Host "Wiping previous install for a fresh copy (system tools are kept)..." -ForegroundColor Gray
+        Remove-Item -Path $TargetDir -Recurse -Force
+    }
     Move-Item -Path $extracted -Destination $TargetDir -Force
     Write-Host "Extracted to $TargetDir" -ForegroundColor Green
 
@@ -427,8 +446,7 @@ try {
     # `throw` instead of `exit 1`: this script is invoked via `irm ... | iex`,
     # which runs in the caller's scope. `exit` would terminate the caller's
     # shell/parent script silently; `throw` surfaces as a catchable error and
-    # still halts this installer if uncaught. Same reasoning as Bug 2 in the
-    # elnora-cli handoff doc.
+    # still halts this installer if uncaught.
     throw "Starter kit bootstrap: failed to download from $zipUrl ($($_.Exception.Message))"
 } finally {
     if (Test-Path $zipPath)       { Remove-Item $zipPath -Force -ErrorAction SilentlyContinue }
@@ -476,8 +494,16 @@ if (Test-Path -LiteralPath $installForAgentsPath) {
     Write-Host "  Wrote integrity marker (.elnora-ai-agent-hackathon-starter-kit-marker)." -ForegroundColor Gray
 }
 
-# Bypass execution policy for this process only so setup-windows.ps1 runs
-# without requiring the user to set it manually (as the older flow did).
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+# Bypass execution policy for this process so setup-windows.ps1 runs without
+# the user setting it manually (as the older flow did). On GPO-managed/corporate
+# machines a MachinePolicy/UserPolicy can override the process scope and make
+# this throw under $ErrorActionPreference='Stop', so catch it and continue --
+# the launch below passes -ExecutionPolicy Bypass explicitly, which works even
+# when the policy change is blocked or a downloaded script carries Mark-of-the-Web.
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+} catch {
+    Write-Host "  (Could not change process execution policy: $($_.Exception.Message). Continuing.)" -ForegroundColor DarkGray
+}
 Write-Host ""
-& .\setup-windows.ps1
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $TargetDir "setup-windows.ps1")

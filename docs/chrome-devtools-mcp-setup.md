@@ -179,7 +179,7 @@ and it just works on Chrome 144+**.
 | **Performance** | `performance_start_trace`, `performance_stop_trace`, `performance_analyze_insight` | Lighthouse-style perf profiling |
 | **Audit** | `lighthouse_audit` | Full Lighthouse run |
 | **Device emulation** | `emulate`, `resize_page` | Mobile / network throttling |
-| **Memory** | `take_memory_snapshot` | Leak hunting |
+| **Memory** | `take_heapsnapshot` | Leak hunting |
 | **Dialogs** | `handle_dialog` | Confirm/dismiss alerts |
 | **Wait** | `wait_for` | Pause until selector / text appears |
 
@@ -210,7 +210,7 @@ evaluate_script { function: "() => document.cookie" }
 **Run Lighthouse on a page:**
 
 ```text
-navigate_page { url: "https://elnora.ai" }
+navigate_page { url: "https://example.com" }
 lighthouse_audit
 ```
 

@@ -47,6 +47,10 @@ def main() -> int:
     parser.add_argument("--rate", type=float, default=1.0, help="Speaking rate (0.25–4.0)")
     args = parser.parse_args()
 
+    if not 0.25 <= args.rate <= 4.0:
+        print(f"--rate must be between 0.25 and 4.0 (got {args.rate}).", file=sys.stderr)
+        return 2
+
     text = " ".join(args.text).strip() or "Welcome to the hackathon. Let's build something."
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project:

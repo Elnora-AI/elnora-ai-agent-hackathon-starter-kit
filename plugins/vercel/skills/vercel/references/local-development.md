@@ -16,8 +16,8 @@ vercel dev --listen 127.0.0.1:5000   # custom host and port
 ## Related Commands
 
 - `vercel link` — connect to a Vercel project. Use `--repo` for multi-project monorepos.
-- `vercel pull` — download project settings and env vars to `.env.local`
-- `vercel env pull` — download only env vars (not project settings)
+- `vercel pull` — download project settings and env vars to `.vercel/.env.<environment>.local` (default `.vercel/.env.development.local`)
+- `vercel env pull` — download only env vars (not project settings) to `.env.local`
 - `vercel init` — scaffold a new project from a Vercel example
 - `vercel open` — open the Vercel dashboard for the linked project
 

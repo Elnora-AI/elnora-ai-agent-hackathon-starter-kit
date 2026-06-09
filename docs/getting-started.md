@@ -159,7 +159,7 @@ fails" or "GitHub repo creation fails."
 
 ## Getting help
 
-- **Claude Code documentation**: https://docs.anthropic.com/en/docs/claude-code
+- **Claude Code documentation**: https://code.claude.com/docs/en/overview
 - **Claude Code issues**: https://github.com/anthropics/claude-code/issues
 - **Anthropic support**: https://support.anthropic.com
 - **Codex documentation & issues**: https://github.com/openai/codex

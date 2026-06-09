@@ -402,8 +402,9 @@ setup script, or fall back to the official installer URL):
 - **Node.js**: download the LTS `.pkg` / `.msi` from `https://nodejs.org/`
 - **Git**: `xcode-select --install` (Mac), `winget install Git.Git` (Win)
 
-If a tool is at the wrong version (e.g. Node < 20), tell the user, suggest
-upgrading, and offer to do it. Don't silently overwrite system tools.
+If a tool is at the wrong version (e.g. Node < 22 — Phase 1 pins Node 22 LTS),
+tell the user, suggest upgrading, and offer to do it. Don't silently overwrite
+system tools.
 
 ### 3. GitHub bootstrap — give the user a real first repo
 

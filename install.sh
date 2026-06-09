@@ -382,8 +382,10 @@ if [ -d "$TARGET_DIR" ]; then
         rm -rf "$PRESERVE_DIR"
         unset PRESERVE_DIR
     fi
-    echo "Wiping for a fresh install (system tools like Claude, Node, Python are kept)..."
-    rm -rf "$TARGET_DIR"
+    # NOTE: we do NOT wipe $TARGET_DIR here. The wipe happens only AFTER the
+    # new copy has downloaded and verified (see below), so a failed download
+    # on flaky conference/hotel wifi can never leave the user with no
+    # workspace -- and no stashed user data -- at all.
 fi
 
 echo "Downloading starter kit tarball..."
@@ -404,6 +406,15 @@ if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 30 --max-time 300 "$TA
         echo "[!] Expected extracted folder not found: $EXTRACTED" >&2
         echo "    The tarball may have changed shape, or tar failed silently." >&2
         exit 1
+    fi
+    # The fresh copy is downloaded and verified -- only now is it safe to
+    # remove the previous install and swap the new one in. Doing the wipe
+    # here (not before the download) means a failed download leaves the
+    # existing workspace untouched. System tools like Claude, Node, Python
+    # live outside $TARGET_DIR and are never touched.
+    if [ -d "$TARGET_DIR" ]; then
+        echo "Wiping previous install for a fresh copy (system tools are kept)..."
+        rm -rf "$TARGET_DIR"
     fi
     mv "$EXTRACTED" "$TARGET_DIR"
     echo "Extracted to $TARGET_DIR"

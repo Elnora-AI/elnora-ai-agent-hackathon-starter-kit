@@ -20,7 +20,7 @@ here, it isn't wired in by default.
 | Knowledge base | `.claude/knowledge-base.local.md` (gitignored) | Vault path config — read, never hardcode |
 | Project rules | `CLAUDE.md` | Always-loaded context + conventions |
 | Recovery / handoff | `INSTALL_FOR_AGENTS.md`, `RECOVERY.md` | Phase 2 setup + repair flows |
-| CI | `.github/workflows/*.yml` | bootstrap-e2e, handoff-e2e, install-smoke-test, codeql |
+| CI | `.github/workflows/*.yml` | agent-selection-test, bootstrap-e2e, handoff-e2e, install-smoke-test, codeql |
 
 No local `hooks/`, `commands/`, `agents/`, or `skills/` directories exist in
 `.claude/`. Slash commands and skills come from plugins — including the
@@ -80,7 +80,8 @@ From `extraKnownMarketplaces` in `.claude/settings.json`. Browse with
 | **superpowers-marketplace** | `obra/superpowers-marketplace` | yes | none — brainstorming, writing plans, parallel agents, TDD, systematic debugging, git worktrees |
 | **addy-agent-skills** | `addyosmani/agent-skills` | yes | none — a focused set of high-quality agent skills |
 
-All four above are **registered only** — browse and install via `/plugins`. See
+The marketplaces showing **none** above are **registered only** — browse and
+install via `/plugins`; the others ship the default-enabled plugins listed. See
 `marketplace-plugins.md` for the full per-marketplace plugin catalog.
 
 ---
@@ -181,12 +182,14 @@ Not invokable from chat, but agents may need to know they exist.
 | `install.sh` / `install.ps1` | Phase 1 — clone + extract starter kit |
 | `setup-mac.sh` / `setup-windows.ps1` | Phase 2 — install Claude Code, wire MCP |
 | `.vscode/run-handoff.{sh,ps1}` | One-shot Phase 1→2 handoff prompt opener |
+| `.github/workflows/agent-selection-test.yml` | Agent-selection (claude / codex / both) test |
 | `.github/workflows/bootstrap-e2e.yml` | E2E bootstrap test |
 | `.github/workflows/handoff-e2e.yml` | Handoff flow E2E test |
 | `.github/workflows/install-smoke-test.yml` | Cross-platform install smoke test |
 | `.github/workflows/codeql.yml` | CodeQL static analysis |
 | `.github/scripts/lint-ascii.py` | Enforce ASCII-only in shipped scripts |
 | `tests/handoff/` | Handoff flow fixtures |
+| `tests/registry/` | Workspace-registry library unit tests |
 | `cache/` | Runtime scratch (gitignored except `README.md`) |
 | `plugins/vercel/` | Bundled Vercel + v0 plugin (skills, commands, references) |
 | `examples/vertex/` | Runnable image + video + voiceover scripts (`out/` gitignored) |

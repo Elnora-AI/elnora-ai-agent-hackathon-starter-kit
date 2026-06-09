@@ -15,7 +15,7 @@ Discover, install, and get setup guides for Vercel Marketplace integrations. Int
    ```bash
    vercel --version
    ```
-   If missing or outdated: `pnpm i -g vercel@latest`
+   If missing or outdated: `npm i -g vercel@latest`
 
 2. **Check project is linked**:
    ```bash

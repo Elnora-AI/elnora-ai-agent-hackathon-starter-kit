@@ -38,17 +38,17 @@ $FailedSteps = New-Object System.Collections.ArrayList
 # Resume / checkpoint state
 # ------------------------------------------------------------
 # This script is safe to run as many times as you like - already-installed
-# tools are detected and skipped. The checkpoint file below goes one step
-# further: it remembers one-time actions that already finished so a re-run
-# does not repeat them, and it lets the script announce "resuming" so a
-# re-run never feels like starting over.
+# tools and existing logins are detected live and skipped, so a re-run never
+# reinstalls or re-does what is already in place. The checkpoint file below
+# records which one-time actions (Claude / Codex / GitHub sign-in) finished,
+# so a re-run can announce "resuming" instead of feeling like starting over.
 #
 # Why this matters: the single most common place people stop is the Claude
 # Code sign-in step. If that happens - or the script is interrupted anywhere
 # else - just run it again. It picks up right where you left off.
 #
 #   Resume (default):   .\setup-windows.ps1
-#   Start over clean:   .\setup-windows.ps1 --fresh
+#   Start over clean:   .\setup-windows.ps1 --fresh   (--restart is an alias)
 #
 # ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
 # local re-run of the smoke test starts from a clean slate).
@@ -1625,7 +1625,7 @@ if ($agentAvailable) {
         # bypassPermissions gate. Three states:
         #   1. Real CI (GITHUB_ACTIONS=true && CI=true) - proceed silently.
         #   2. Local opt-in (ELNORA_HANDOFF_LOCAL_BYPASS=1) - print a 5-second
-        #      warning, then proceed. For Carmen-style local handoff testing.
+        #      warning, then proceed. For local handoff testing by a maintainer.
         #   3. Anything else - refuse. Just having ELNORA_HANDOFF_MODE=headless
         #      isn't enough; that env var is too easy to flip from a profile
         #      or a stray script. We want bypassPermissions to require an

@@ -44,25 +44,32 @@ FAILED_STEPS=()
 # Resume / checkpoint state
 # ------------------------------------------------------------
 # This script is safe to run as many times as you like - already-installed
-# tools are detected and skipped. The checkpoint file below goes one step
-# further: it remembers one-time actions that already finished so a re-run
-# does not repeat them, and it lets the script announce "resuming" so a
-# re-run never feels like starting over.
+# tools and existing logins are detected live and skipped, so a re-run never
+# reinstalls or re-does what is already in place. The checkpoint file below
+# records which one-time actions (Claude / Codex / GitHub sign-in) finished,
+# so a re-run can announce "resuming" instead of feeling like starting over.
 #
 # Why this matters: the single most common place people stop is the Claude
 # Code sign-in step. If that happens - or the script is interrupted anywhere
 # else - just run it again. It picks up right where you left off.
 #
 #   Resume (default):   bash setup-mac.sh
-#   Start over clean:   bash setup-mac.sh --fresh
+#   Start over clean:   bash setup-mac.sh --fresh   (--restart is an alias)
 #
 # ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
 # local re-run of the smoke test starts from a clean slate).
 SETUP_STATE_FILE="${ELNORA_SETUP_STATE_FILE:-$HOME/.claude-starter-setup-state}"
-if [ "${1:-}" = "--fresh" ] || [ "${1:-}" = "--restart" ]; then
-    rm -f "$SETUP_STATE_FILE" 2>/dev/null || true
-    echo "  (--fresh: cleared saved progress - starting from the beginning.)"
-fi
+# Accept --fresh / --restart in any argument position (matches setup-windows.ps1,
+# which scans all of $args), not just as the first positional argument.
+for _arg in "$@"; do
+    case "$_arg" in
+        --fresh|--restart)
+            rm -f "$SETUP_STATE_FILE" 2>/dev/null || true
+            echo "  (--fresh: cleared saved progress - starting from the beginning.)"
+            break
+            ;;
+    esac
+done
 # Create the state file up front (mode 600, same as the log) so is_done/
 # mark_done never have to special-case "file missing".
 ( umask 077 && : >> "$SETUP_STATE_FILE" ) 2>/dev/null || touch "$SETUP_STATE_FILE" 2>/dev/null || true
@@ -1362,7 +1369,7 @@ PY
         # bypassPermissions gate. Three states:
         #   1. Real CI (GITHUB_ACTIONS=true && CI=true) - proceed silently.
         #   2. Local opt-in (ELNORA_HANDOFF_LOCAL_BYPASS=1) - print a 5-second
-        #      warning, then proceed. For Carmen-style local handoff testing.
+        #      warning, then proceed. For local handoff testing by a maintainer.
         #   3. Anything else - refuse. Just having ELNORA_HANDOFF_MODE=headless
         #      isn't enough; that env var is too easy to flip from a shell
         #      profile or a stray script. We want bypassPermissions to require

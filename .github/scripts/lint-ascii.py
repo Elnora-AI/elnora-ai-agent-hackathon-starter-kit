@@ -15,10 +15,13 @@
 # Approximation:
 #   The trailing-`#`-comment detection tracks single-line "..." and '...'
 #   quote state. It does NOT model multi-line PowerShell here-strings
-#   (@"..."@ / @'...'@) or bash heredocs. Those tolerate stray quotes
-#   internally, but our rule treats their contents as code anyway, which
-#   is fine: the enforced rule (no non-ASCII outside `#`) is a strict
-#   superset of "no non-ASCII in a place that breaks PowerShell parsing".
+#   (@"..."@ / @'...'@) or bash heredocs, nor the bash escaped-apostrophe
+#   idiom '...'\''...' (close, escaped quote, reopen), which can leave the
+#   quote tracker in the wrong state for a trailing comment on that line.
+#   Those tolerate stray quotes internally, but our rule treats their
+#   contents as code anyway, which is fine: the enforced rule (no non-ASCII
+#   outside `#`) is a strict superset of "no non-ASCII in a place that
+#   breaks PowerShell parsing".
 #
 # Exit codes:
 #   0 - all scripts clean

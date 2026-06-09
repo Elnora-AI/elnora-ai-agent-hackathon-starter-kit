@@ -122,8 +122,10 @@ installs each one **if you say yes**:
 | Vercel CLI (`vercel`) | Deploy apps and use v0 to generate UIs. |
 | Google Cloud CLI (`gcloud`) | Run the Vertex AI image, video, and voiceover examples. |
 
-Your agent can also set up a knowledge base (Obsidian vault) and Chrome DevTools
-(browser control) in Phase 2 — see those sections below.
+Your agent can also set up a knowledge base (Obsidian vault — see the section
+below) and finish enabling Chrome DevTools browser control in Phase 2 (the MCP
+server is pre-connected; Phase 2 turns on Chrome's remote debugging — see
+[`docs/chrome-devtools-mcp-setup.md`](docs/chrome-devtools-mcp-setup.md)).
 
 ## What's already wired up
 
