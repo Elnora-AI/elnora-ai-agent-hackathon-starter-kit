@@ -6,7 +6,11 @@ You've got Claude Code installed and running. Here's how to make the most of it.
 
 ## Daily workflow
 
-1. **Open your project** in VS Code
+1. **Open your project** in VS Code. Setup already opened it as a named
+   workspace, so the fastest way back is **File → Open Recent** (your project
+   is the entry ending in `.code-workspace`) — or just relaunch VS Code, which
+   reopens it automatically. Tip: right-click its Dock/taskbar icon while it's
+   open and pin it for one-click access.
 2. **Open the terminal** (`` Ctrl+` `` or View > Terminal)
 3. **Start Claude** by typing `claude` and pressing Enter
 4. **Ask Claude to help** with whatever you're working on

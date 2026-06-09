@@ -77,6 +77,13 @@ bash setup-mac.sh
 When it restarts you'll see `Resuming where a previous run left off` at the
 top, so you know it's continuing — not starting over.
 
+**Re-running the install one-liner is safe too.** If you've lost track of the
+folder and re-run the `curl … | bash` (or `irm … | iex`) command from the top,
+it remembers the workspace(s) you already set up and offers to resume one
+instead of quietly creating a second folder — so you won't end up with a pile
+of half-finished copies. Pick the one it lists, or choose "new" if you really
+want a fresh workspace.
+
 The most common stopping point is the **Claude sign-in** step. If that's where
 you are, make sure you have an active [Claude Pro/Max](https://claude.com/upgrade)
 account, then re-run and complete the login when the browser opens.
@@ -137,6 +144,13 @@ You'll have a **private** GitHub repo on your account. The `origin` remote
 points at it (verify with `git remote -v`). From here it's yours: commit,
 push, branch, rename. Keep this one private; spin up a separate public repo
 if you want to share something later.
+
+**Reopening the project in VS Code:** setup leaves a
+`<your-workspace>.code-workspace` file in the folder and opens that (not the
+bare folder), so your project shows up as one clear entry under
+**File → Open Recent** and can be pinned to the Dock/taskbar. Setup also turns
+on VS Code's "reopen windows on launch" so quitting and relaunching brings the
+project back automatically — no hunting for the folder.
 
 ## Knowledge base (optional)
 

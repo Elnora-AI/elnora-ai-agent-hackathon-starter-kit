@@ -1390,6 +1390,64 @@ if ($claudeAvailable) {
     #      interactive handoff; refuse for headless mode where claude
     #      would run with bypassPermissions (see headless branch below).
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+    # ---- VS Code workspace + window restore -------------------------------
+    # Two fixes for "I closed VS Code and it forgot which folder this was":
+    #   1. Open a NAMED <workspace>.code-workspace instead of a bare folder, so
+    #      it lands in File > Open Recent as one clear, re-openable entry.
+    #   2. Set window.restoreWindows:"all" in the user's GLOBAL VS Code / Cursor
+    #      settings so relaunching the app reopens this workspace automatically.
+    # Both are best-effort: any failure must never break the handoff. Mirrors
+    # ensure_vscode_workspace in setup-mac.sh (PowerShell JSON instead of
+    # python3, since Windows has no guaranteed python3).
+    $workspaceFile = Join-Path $scriptDir ("$(Split-Path -Leaf $scriptDir).code-workspace")
+    function Initialize-VSCodeWorkspace {
+        # 1. Named workspace file (idempotent: only write if missing).
+        if (-not (Test-Path -LiteralPath $workspaceFile)) {
+            $wsJson = @'
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {}
+}
+'@
+            Set-Content -LiteralPath $workspaceFile -Value $wsJson -Encoding UTF8
+        }
+
+        # 2. Merge restoreWindows into global settings for installed editors.
+        foreach ($app in @('Code', 'Code - Insiders', 'Cursor')) {
+            $userDir = Join-Path $env:APPDATA (Join-Path $app 'User')
+            # Only touch editors the user has actually launched (User dir
+            # exists); don't fabricate settings for one that isn't installed.
+            if (-not (Test-Path -LiteralPath $userDir)) { continue }
+            $settings = Join-Path $userDir 'settings.json'
+            try {
+                $obj = $null
+                if (Test-Path -LiteralPath $settings) {
+                    $raw = Get-Content -LiteralPath $settings -Raw
+                    if ([string]::IsNullOrWhiteSpace($raw)) {
+                        $obj = [pscustomobject]@{}
+                    } else {
+                        # VS Code settings are JSONC. If comments/trailing
+                        # commas make this throw, we fall to catch and leave the
+                        # file ALONE rather than risk clobbering it.
+                        $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+                    }
+                } else {
+                    $obj = [pscustomobject]@{}
+                }
+                if (($obj.PSObject.Properties.Name -contains 'window.restoreWindows') -and ($obj.'window.restoreWindows' -eq 'all')) {
+                    continue
+                }
+                $obj | Add-Member -NotePropertyName 'window.restoreWindows' -NotePropertyValue 'all' -Force
+                $obj | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $settings -Encoding UTF8
+            } catch {
+                # Unparseable JSONC or write error -- never let it abort setup.
+            }
+        }
+    }
+
     $markerFile = Join-Path $scriptDir ".elnora-ai-agent-hackathon-starter-kit-marker"
     $docFile = Join-Path $scriptDir "INSTALL_FOR_AGENTS.md"
     $markerMissing = $false
@@ -1527,6 +1585,10 @@ if ($claudeAvailable) {
     #      VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or the
     #      `code` shim isn't on PATH yet.
     if ($env:TERM_PROGRAM -eq "vscode") {
+        # Already in VS Code, so we don't launch a window -- but still drop the
+        # named workspace file and set restoreWindows so the NEXT relaunch
+        # reopens this project instead of an empty window.
+        try { Initialize-VSCodeWorkspace } catch { }
         Write-Host "Already inside VS Code - starting Claude in this terminal." -ForegroundColor White
         Write-Host "On first run, your browser will open to log into your Claude Pro/Max account." -ForegroundColor White
         Write-Host ""
@@ -1544,6 +1606,11 @@ if ($claudeAvailable) {
             # lives in $HandoffPrompt above. The helper reads, deletes, then
             # invokes claude. BOM-less UTF-8 to keep Get-Content -Raw clean.
             [System.IO.File]::WriteAllText($sentinel, $HandoffPrompt, [System.Text.UTF8Encoding]::new($false))
+
+            # Create the named workspace file + set restoreWindows BEFORE we
+            # open, so we open the workspace (not the bare folder) and the
+            # window sticks across relaunches.
+            try { Initialize-VSCodeWorkspace } catch { }
 
             Write-Host "Opening VS Code - Claude will continue Phase 2 setup there." -ForegroundColor White
             Write-Host ""
@@ -1568,11 +1635,13 @@ if ($claudeAvailable) {
             Write-Host ""
 
             # `code` (code.cmd) returns immediately after asking the GUI to open
-            # the folder. Wrap in try/catch so a stale shim falls through to the
-            # in-terminal fallback rather than aborting the script.
+            # the workspace. We open the named .code-workspace (not the bare
+            # folder) so it lands in Open Recent as one clear, re-openable entry.
+            # Wrap in try/catch so a stale shim falls through to the in-terminal
+            # fallback rather than aborting the script.
             $codeLaunched = $false
             try {
-                & code $scriptDir | Out-Null
+                & code $workspaceFile | Out-Null
                 if ($LASTEXITCODE -eq 0) { $codeLaunched = $true }
             } catch {
                 Write-Host "  [!] 'code' command failed: $($_.Exception.Message)" -ForegroundColor Yellow

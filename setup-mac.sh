@@ -1192,6 +1192,73 @@ if command -v "$AGENT_BIN" >/dev/null 2>&1; then
         SCRIPT_DIR="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)"
         [ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="$PWD"
     fi
+
+    # ---- VS Code workspace + window restore -------------------------------
+    # Two fixes for "I closed VS Code and it forgot which folder this was":
+    #   1. Open a NAMED <workspace>.code-workspace instead of a bare folder.
+    #      A named workspace shows up as one clear entry in File > Open Recent
+    #      and pins cleanly to the Dock, so the user can always get back here
+    #      -- a bare folder is far easier to lose track of.
+    #   2. Set window.restoreWindows:"all" in the user's GLOBAL VS Code (and
+    #      Cursor) settings so relaunching the app reopens this workspace
+    #      automatically. That's a user-level window setting, so it cannot live
+    #      in the workspace file -- it has to go in User settings.json.
+    # Both are best-effort: any failure here must never break the handoff.
+    WORKSPACE_FILE="$SCRIPT_DIR/$(basename "$SCRIPT_DIR").code-workspace"
+    ensure_vscode_workspace() {
+        # 1. Named workspace file (idempotent: only write if missing, so we
+        #    never stomp a workspace the user has since customized).
+        if [ ! -f "$WORKSPACE_FILE" ]; then
+            cat > "$WORKSPACE_FILE" <<'JSON'
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {}
+}
+JSON
+        fi
+
+        # 2. Merge restoreWindows into global settings, if python3 is around.
+        #    (No hard dependency: if python3 is absent the workspace file +
+        #    Open Recent still get the user back; they just don't get auto
+        #    window restore.)
+        command -v python3 >/dev/null 2>&1 || return 0
+        local app_support="$HOME/Library/Application Support" d settings
+        for d in "Code" "Code - Insiders" "Cursor"; do
+            settings="$app_support/$d/User/settings.json"
+            # Only touch apps the user has actually launched (User dir exists);
+            # don't fabricate settings for an editor that isn't installed.
+            [ -d "$app_support/$d/User" ] || continue
+            python3 - "$settings" <<'PY' || true
+import json, os, sys
+f = sys.argv[1]
+try:
+    if os.path.exists(f):
+        with open(f) as fh:
+            txt = fh.read().strip()
+        # VS Code settings are JSONC. If comments/trailing commas make this
+        # unparseable, leave the file ALONE rather than risk clobbering the
+        # user's real settings -- the workspace file already covers the
+        # common case.
+        data = json.loads(txt) if txt else {}
+    else:
+        data = {}
+    if not isinstance(data, dict):
+        sys.exit(0)
+    if data.get("window.restoreWindows") == "all":
+        sys.exit(0)
+    data["window.restoreWindows"] = "all"
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    with open(f, "w") as fh:
+        json.dump(data, fh, indent=2)
+except Exception:
+    # Never let a settings-merge hiccup abort setup.
+    pass
+PY
+        done
+    }
+
     MARKER_FILE="$SCRIPT_DIR/.elnora-ai-agent-hackathon-starter-kit-marker"
     DOC_FILE="$SCRIPT_DIR/INSTALL_FOR_AGENTS.md"
     marker_missing=0
@@ -1332,6 +1399,10 @@ if command -v "$AGENT_BIN" >/dev/null 2>&1; then
     #      `code` shim couldn't be created (brew bin not writable, Cursor
     #      instead of VS Code, etc.).
     if [ "${TERM_PROGRAM:-}" = "vscode" ]; then
+        # Already in VS Code, so we don't launch a window -- but still drop the
+        # named workspace file and set restoreWindows so the NEXT relaunch
+        # reopens this project instead of an empty window.
+        ensure_vscode_workspace || true
         echo "Already inside VS Code - starting $AGENT_NAME in this terminal."
         echo "$AUTH_NOTE"
         echo ""
@@ -1352,6 +1423,11 @@ if command -v "$AGENT_BIN" >/dev/null 2>&1; then
             # task is one-shot even if claude crashes.
             printf '%s' "$HANDOFF_PROMPT" > "$SENTINEL"
             chmod +x "$VSCODE_DIR/run-handoff.sh" 2>/dev/null || true
+
+            # Create the named workspace file + set restoreWindows BEFORE we
+            # open, so we can open the workspace (not the bare folder) and the
+            # window sticks across relaunches.
+            ensure_vscode_workspace || true
 
             echo "Opening VS Code - Claude will continue Phase 2 setup there."
             echo ""
@@ -1375,10 +1451,12 @@ if command -v "$AGENT_BIN" >/dev/null 2>&1; then
             echo "You can close this Terminal window once VS Code has loaded."
             echo ""
 
-            # `code` returns immediately after asking the GUI to open the folder.
-            # If it fails (e.g. shim is stale and points at a removed app bundle),
+            # `code` returns immediately after asking the GUI to open the
+            # workspace. We open the named .code-workspace (not the bare folder)
+            # so it lands in Open Recent as one clear, re-openable entry. If it
+            # fails (e.g. shim is stale and points at a removed app bundle),
             # fall through to the in-terminal fallback below.
-            if code "$SCRIPT_DIR" >/dev/null 2>&1; then
+            if code "$WORKSPACE_FILE" >/dev/null 2>&1; then
                 exit 0
             fi
             echo "  [!] 'code' command failed - falling back to terminal handoff." >&2

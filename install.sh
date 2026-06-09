@@ -58,6 +58,128 @@ _user_lower="$(printf '%s' "${USER:-me}" \
 [ -z "$_user_lower" ] && _user_lower="me"
 default_name="${_user_lower}-agents"
 
+# ---- Workspace registry ---------------------------------------------------
+# Single source of truth for "which folder is the real workspace." Without it,
+# a customer whose first run died in Phase 2 re-runs this script, doesn't
+# remember they typed `carmen-agents`, types `carmen-workspace` instead -- and
+# now owns two half-finished folders. A few panicked re-runs later they have
+# ten and no idea which is real. The registry lets us SHOW them the workspace
+# they already have and resume it instead of silently spawning another.
+#
+# Format is a plain TSV (name<TAB>path<TAB>created<TAB>last_run), NOT JSON, on
+# purpose: this script runs via `curl | bash` on a fresh Mac where neither jq
+# nor python3 is guaranteed present, so the registry must be read/written in
+# pure bash. Comment lines start with '#'.
+REGISTRY_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/elnora"
+REGISTRY_FILE="$REGISTRY_DIR/workspaces.tsv"
+
+_registry_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# Append or update one entry, preserving its original `created` timestamp.
+# Args: name path
+registry_record() {
+    local name="$1" path="$2" now created tmp existing
+    now="$(_registry_now)"
+    mkdir -p "$REGISTRY_DIR"
+    created="$now"
+    if [ -f "$REGISTRY_FILE" ]; then
+        existing="$(awk -F'\t' -v p="$path" '!/^#/ && $2==p {print $3; exit}' "$REGISTRY_FILE")"
+        [ -n "$existing" ] && created="$existing"
+    fi
+    tmp="$(mktemp)"
+    {
+        printf '# Elnora workspace registry (managed by install.sh -- do not edit by hand)\n'
+        printf '# columns: name<TAB>path<TAB>created(UTC)<TAB>last_run(UTC)\n'
+        [ -f "$REGISTRY_FILE" ] && awk -F'\t' -v p="$path" '!/^#/ && NF>=2 && $2!=p' "$REGISTRY_FILE"
+        printf '%s\t%s\t%s\t%s\n' "$name" "$path" "$created" "$now"
+    } > "$tmp"
+    mv "$tmp" "$REGISTRY_FILE"
+}
+
+# Drop one entry by path (used when the user chooses to forget a dead folder).
+# Args: path
+registry_forget() {
+    local path="$1" tmp
+    [ -f "$REGISTRY_FILE" ] || return 0
+    tmp="$(mktemp)"
+    awk -F'\t' -v p="$path" '/^#/ || $2!=p' "$REGISTRY_FILE" > "$tmp"
+    mv "$tmp" "$REGISTRY_FILE"
+}
+
+# Interactive resume menu. Reads the registry, lists known workspaces with a
+# ready/missing status, and lets the user resume one or create a new one. On
+# "resume", sets WORKSPACE_NAME (the rest of the script turns that into the
+# folder path and reuses/refreshes it). Returns 0 if WORKSPACE_NAME was chosen
+# here, 1 if the caller should fall through to the fresh-name prompt.
+#
+# All prompts read from /dev/tty (curl|bash leaves stdin closed), matching the
+# fresh-name prompt below.
+registry_resume_menu() {
+    [ -f "$REGISTRY_FILE" ] || return 1
+    local names paths n p
+    while :; do
+        # (Re)load entries at the top of every iteration so a "forget" below
+        # immediately drops the entry from the displayed list.
+        names=(); paths=()
+        while IFS=$'\t' read -r n p _rest; do
+            [ -z "${n:-}" ] && continue
+            names+=("$n"); paths+=("$p")
+        done < <(awk -F'\t' '!/^#/ && NF>=2 {print $1"\t"$2}' "$REGISTRY_FILE")
+        [ "${#names[@]}" -eq 0 ] && return 1
+
+        echo "You already have Elnora workspace(s) on this machine:" > /dev/tty
+        echo "" > /dev/tty
+        local i status
+        for i in "${!names[@]}"; do
+            if [ -d "${paths[$i]}" ]; then
+                status="ready"
+            else
+                status="folder missing"
+            fi
+            printf "  [%d] %s\n        %s  (%s)\n" \
+                "$((i + 1))" "${names[$i]}" "${paths[$i]}" "$status" > /dev/tty
+        done
+        echo "" > /dev/tty
+        echo "  [n] Create a NEW workspace with a different name" > /dev/tty
+        echo "" > /dev/tty
+        printf "Resume which workspace? [1-%d / n]: " "${#names[@]}" > /dev/tty
+        local reply; IFS= read -r reply < /dev/tty || reply=""
+
+        case "$reply" in
+            n|N|new|NEW) return 1 ;;
+        esac
+        if ! [[ "$reply" =~ ^[0-9]+$ ]] || [ "$reply" -lt 1 ] || [ "$reply" -gt "${#names[@]}" ]; then
+            echo "  [!] Please enter a number between 1 and ${#names[@]}, or 'n' for new." > /dev/tty
+            echo "" > /dev/tty
+            continue
+        fi
+
+        local sel_name="${names[$((reply - 1))]}" sel_path="${paths[$((reply - 1))]}"
+        if [ -d "$sel_path" ]; then
+            WORKSPACE_NAME="$sel_name"
+            echo "" > /dev/tty
+            echo "Resuming '$sel_name' at $sel_path" > /dev/tty
+            echo "" > /dev/tty
+            return 0
+        fi
+
+        # Folder is gone but still in the registry -- ask what to do rather
+        # than silently recreating or silently dropping it.
+        echo "" > /dev/tty
+        echo "  '$sel_name' is registered at $sel_path, but that folder is gone." > /dev/tty
+        echo "    [r] Re-create the workspace there" > /dev/tty
+        echo "    [f] Forget it (remove from this list)" > /dev/tty
+        echo "    [b] Back to the list" > /dev/tty
+        printf "  Choose [r/f/b]: " > /dev/tty
+        local sub; IFS= read -r sub < /dev/tty || sub=""
+        case "$sub" in
+            r|R) WORKSPACE_NAME="$sel_name"; echo "" > /dev/tty; echo "Re-creating '$sel_name' at $sel_path" > /dev/tty; echo "" > /dev/tty; return 0 ;;
+            f|F) registry_forget "$sel_path"; echo "  Removed '$sel_name' from the registry." > /dev/tty; echo "" > /dev/tty ;;
+            *)   echo "" > /dev/tty ;;
+        esac
+    done
+}
+
 echo "==========================================="
 echo "  Elnora AI Agent Hackathon Starter Kit - Bootstrap"
 echo "==========================================="
@@ -66,6 +188,12 @@ echo ""
 if [ -n "${ELNORA_WORKSPACE_NAME:-}" ]; then
     WORKSPACE_NAME="$ELNORA_WORKSPACE_NAME"
 elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
+    # If we already know about workspace(s) on this machine, offer to resume
+    # one before asking for a name. This is the whole point of the registry:
+    # stop a stalled-and-retried install from spawning a second folder under a
+    # slightly different name. Only fall through to the fresh-name prompt when
+    # the user declines (picks 'n') or there's nothing to resume.
+    if ! registry_resume_menu; then
     echo "Pick a name for your workspace. This becomes BOTH:"
     echo "  - the local folder under ~/Documents/"
     echo "  - the GitHub repo we'll create for you in Phase 2"
@@ -86,6 +214,7 @@ elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
         echo "  [!] '$WORKSPACE_NAME' isn't a legal name. Use lowercase letters, digits, and dashes only; must start and end with a letter or digit (no leading/trailing dash)." > /dev/tty
     done
     echo ""
+    fi
 else
     WORKSPACE_NAME="elnora-ai-agent-hackathon-starter-kit"
 fi
@@ -293,6 +422,12 @@ else
 fi
 
 cd "$TARGET_DIR"
+
+# Record this workspace in the registry (or refresh its last_run timestamp).
+# Now the next re-run can offer to resume THIS folder instead of asking for a
+# name and spawning a sibling. Best-effort: a registry write failure must never
+# abort an otherwise-good install.
+registry_record "$WORKSPACE_NAME" "$TARGET_DIR" || true
 
 # Write a marker file recording the SHA256 of INSTALL_FOR_AGENTS.md as it was
 # extracted from GitHub. setup-mac.sh verifies this hash before handing off to

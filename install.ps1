@@ -63,6 +63,124 @@ $userLower = ($env:USERNAME -as [string]).ToLowerInvariant() -replace '\s+', '-'
 if ([string]::IsNullOrWhiteSpace($userLower)) { $userLower = 'me' }
 $defaultName = "$userLower-agents"
 
+# ---- Workspace registry ---------------------------------------------------
+# Single source of truth for "which folder is the real workspace", so a
+# stalled-and-retried install resumes the same folder instead of spawning
+# carmen-agents, carmen-workspace, my-agents... and leaving the user with a
+# pile of half-finished repos. Plain TSV (name<TAB>path<TAB>created<TAB>
+# last_run); comment lines start with '#'. Mirrors install.sh.
+$RegistryDir  = Join-Path $env:APPDATA 'elnora'
+$RegistryFile = Join-Path $RegistryDir 'workspaces.tsv'
+
+function Get-RegistryEntries {
+    if (-not (Test-Path -LiteralPath $RegistryFile)) { return @() }
+    $entries = @()
+    foreach ($line in (Get-Content -LiteralPath $RegistryFile)) {
+        if ($line -match '^\s*#' -or [string]::IsNullOrWhiteSpace($line)) { continue }
+        $parts = $line -split "`t"
+        if ($parts.Count -ge 2) {
+            $created = ''
+            if ($parts.Count -ge 3) { $created = $parts[2] }
+            $lastRun = ''
+            if ($parts.Count -ge 4) { $lastRun = $parts[3] }
+            $entries += [pscustomobject]@{
+                Name    = $parts[0]
+                Path    = $parts[1]
+                Created = $created
+                LastRun = $lastRun
+            }
+        }
+    }
+    return $entries
+}
+
+function Write-Registry {
+    param([object[]]$Entries)
+    New-Item -ItemType Directory -Path $RegistryDir -Force -ErrorAction SilentlyContinue | Out-Null
+    $lines = @(
+        '# Elnora workspace registry (managed by install.ps1 -- do not edit by hand)',
+        '# columns: name<TAB>path<TAB>created(UTC)<TAB>last_run(UTC)'
+    )
+    foreach ($e in $Entries) {
+        $lines += ($e.Name + "`t" + $e.Path + "`t" + $e.Created + "`t" + $e.LastRun)
+    }
+    Set-Content -LiteralPath $RegistryFile -Value $lines -Encoding UTF8
+}
+
+# Append or update one entry, preserving its original Created timestamp.
+function Set-RegistryEntry {
+    param([string]$Name, [string]$Path)
+    $now = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $entries = @(Get-RegistryEntries)
+    $created = $now
+    $existing = $entries | Where-Object { $_.Path -eq $Path } | Select-Object -First 1
+    if ($existing -and $existing.Created) { $created = $existing.Created }
+    $kept = @($entries | Where-Object { $_.Path -ne $Path })
+    $kept += [pscustomobject]@{ Name = $Name; Path = $Path; Created = $created; LastRun = $now }
+    Write-Registry -Entries $kept
+}
+
+# Drop one entry by path (used when the user forgets a dead folder).
+function Remove-RegistryEntry {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $RegistryFile)) { return }
+    $kept = @(Get-RegistryEntries | Where-Object { $_.Path -ne $Path })
+    Write-Registry -Entries $kept
+}
+
+# Interactive resume menu. Returns the chosen workspace name to resume, or
+# $null if the caller should fall through to the fresh-name prompt.
+function Invoke-ResumeMenu {
+    $entries = @(Get-RegistryEntries)
+    if ($entries.Count -eq 0) { return $null }
+    while ($true) {
+        Write-Host "You already have Elnora workspace(s) on this machine:"
+        Write-Host ""
+        for ($i = 0; $i -lt $entries.Count; $i++) {
+            $e = $entries[$i]
+            $status = if (Test-Path -LiteralPath $e.Path) { 'ready' } else { 'folder missing' }
+            Write-Host ("  [{0}] {1}" -f ($i + 1), $e.Name)
+            Write-Host ("        {0}  ({1})" -f $e.Path, $status)
+        }
+        Write-Host ""
+        Write-Host "  [n] Create a NEW workspace with a different name"
+        Write-Host ""
+        $reply = Read-Host -Prompt ("Resume which workspace? [1-{0} / n]" -f $entries.Count)
+        if ($reply -match '^(n|new)$') { return $null }
+        $num = 0
+        if (-not [int]::TryParse($reply, [ref]$num) -or $num -lt 1 -or $num -gt $entries.Count) {
+            Write-Host ("  [!] Please enter a number between 1 and {0}, or 'n' for new." -f $entries.Count) -ForegroundColor Yellow
+            Write-Host ""
+            continue
+        }
+        $sel = $entries[$num - 1]
+        if (Test-Path -LiteralPath $sel.Path) {
+            Write-Host ""
+            Write-Host ("Resuming '{0}' at {1}" -f $sel.Name, $sel.Path)
+            Write-Host ""
+            return $sel.Name
+        }
+        # Folder is gone but still registered -- ask rather than assume.
+        Write-Host ""
+        Write-Host ("  '{0}' is registered at {1}, but that folder is gone." -f $sel.Name, $sel.Path)
+        Write-Host "    [r] Re-create the workspace there"
+        Write-Host "    [f] Forget it (remove from this list)"
+        Write-Host "    [b] Back to the list"
+        $sub = Read-Host -Prompt "  Choose [r/f/b]"
+        switch -Regex ($sub) {
+            '^r$' { Write-Host ""; Write-Host ("Re-creating '{0}' at {1}" -f $sel.Name, $sel.Path); Write-Host ""; return $sel.Name }
+            '^f$' {
+                Remove-RegistryEntry -Path $sel.Path
+                Write-Host ("  Removed '{0}' from the registry." -f $sel.Name)
+                Write-Host ""
+                $entries = @(Get-RegistryEntries)
+                if ($entries.Count -eq 0) { return $null }
+            }
+            default { Write-Host "" }
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "===========================================" -ForegroundColor Cyan
 Write-Host "  Elnora AI Agent Hackathon Starter Kit - Bootstrap" -ForegroundColor Cyan
@@ -72,6 +190,13 @@ Write-Host ""
 if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_WORKSPACE_NAME)) {
     $WorkspaceName = $env:ELNORA_WORKSPACE_NAME
 } elseif ([Environment]::UserInteractive -and $Host.UI.RawUI) {
+    # Offer to resume a known workspace before asking for a name -- this is how
+    # we stop a retried install from spawning a duplicate folder. Only prompt
+    # for a fresh name when the user declines or there's nothing to resume.
+    $resumed = Invoke-ResumeMenu
+    if ($resumed) {
+        $WorkspaceName = $resumed
+    } else {
     Write-Host "Pick a name for your workspace. This becomes BOTH:"
     Write-Host "  - the local folder under $env:USERPROFILE\Documents\"
     Write-Host "  - the GitHub repo we'll create for you in Phase 2"
@@ -92,6 +217,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:ELNORA_WORKSPACE_NAME)) {
         Write-Host "  [!] '$reply' isn't a legal name. Use lowercase letters, digits, and dashes only; must start and end with a letter or digit (no leading/trailing dash)." -ForegroundColor Yellow
     }
     Write-Host ""
+    }
 } else {
     $WorkspaceName = "elnora-ai-agent-hackathon-starter-kit"
 }
@@ -303,6 +429,12 @@ try {
 }
 
 Set-Location $TargetDir
+
+# Record this workspace (or refresh its last_run) so the next re-run can offer
+# to resume THIS folder instead of asking for a name and spawning a sibling.
+# Best-effort: a registry write failure must never abort an otherwise-good
+# install.
+try { Set-RegistryEntry -Name $WorkspaceName -Path $TargetDir } catch { }
 
 # Strip dev/CI scaffolding the customer can't use anyway. tests/handoff/ exists
 # for our CI assertions; .github/ holds workflows + dependabot config that only

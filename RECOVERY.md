@@ -208,6 +208,15 @@ flag, which clears the saved progress:
 - macOS: `bash setup-mac.sh --fresh`
 - Windows: `.\setup-windows.ps1 --fresh`
 
+**Lost track of the folder and only remember the install one-liner?** Re-run it
+(`curl … | bash` on macOS, `irm … | iex` on Windows) — it's safe. The installer
+keeps a small registry of the workspaces you've created and, on an interactive
+re-run, lists them and offers to **resume** one instead of silently making a
+second folder. So re-running can't leave you with a pile of half-finished
+copies under slightly different names. Pick the workspace it lists, or choose
+"new" if you genuinely want a separate one. (If a listed folder has since been
+deleted, it asks whether to re-create it there or forget it.)
+
 If the same step fails three times in a row, stop and ask for help. Email or
 share `~/claude-starter-install.log` so someone can see what's going wrong.
 
