@@ -42,6 +42,38 @@ exec > >(tee "$LOG_FILE") 2>&1
 FAILED_STEPS=()
 
 # ------------------------------------------------------------
+# Resume / checkpoint state
+# ------------------------------------------------------------
+# This script is safe to run as many times as you like - already-installed
+# tools are detected and skipped. The checkpoint file below goes one step
+# further: it remembers one-time actions that already finished (e.g. the
+# Elnora CLI download) so a re-run does not repeat them, and it lets the
+# script announce "resuming" so a re-run never feels like starting over.
+#
+# Why this matters: the single most common place people stop is the Claude
+# Code sign-in step. If that happens - or the script is interrupted anywhere
+# else - just run it again. It picks up right where you left off.
+#
+#   Resume (default):   bash setup-mac.sh
+#   Start over clean:   bash setup-mac.sh --fresh
+#
+# ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
+# local re-run of the smoke test starts from a clean slate).
+SETUP_STATE_FILE="${ELNORA_SETUP_STATE_FILE:-$HOME/.claude-starter-setup-state}"
+if [ "${1:-}" = "--fresh" ] || [ "${1:-}" = "--restart" ]; then
+    rm -f "$SETUP_STATE_FILE" 2>/dev/null || true
+    echo "  (--fresh: cleared saved progress - starting from the beginning.)"
+fi
+# Create the state file up front (mode 600, same as the log) so is_done/
+# mark_done never have to special-case "file missing".
+( umask 077 && : >> "$SETUP_STATE_FILE" ) 2>/dev/null || touch "$SETUP_STATE_FILE" 2>/dev/null || true
+
+# is_done <name>   -> exit 0 if this checkpoint was reached on a previous run.
+# mark_done <name> -> record a checkpoint (idempotent; one name per line).
+is_done()   { grep -qxF "$1" "$SETUP_STATE_FILE" 2>/dev/null; }
+mark_done() { is_done "$1" || printf '%s\n' "$1" >> "$SETUP_STATE_FILE" 2>/dev/null || true; }
+
+# ------------------------------------------------------------
 # remediation_hint "<step label>"
 # ------------------------------------------------------------
 # Returns a multi-line, step-specific remediation message. Used by
@@ -255,6 +287,15 @@ echo "==========================================="
 echo "  Log: $LOG_FILE"
 echo ""
 
+# If we have saved progress from an earlier run, say so up front - so the
+# "already installed / Skipping" lines below clearly read as "resuming",
+# not "starting over".
+if [ -s "$SETUP_STATE_FILE" ]; then
+    echo "  Resuming where a previous run left off - finished steps are skipped."
+    echo "  (To start over from scratch instead:  bash setup-mac.sh --fresh)"
+    echo ""
+fi
+
 # --- Prerequisite: Xcode Command Line Tools ---
 # Homebrew depends on these. On a fresh Mac the first `brew install` triggers a
 # blocking GUI dialog - we check upfront so the user isn't surprised mid-script.
@@ -362,13 +403,23 @@ if ! command -v elnora &> /dev/null; then
         echo "  Next: paste your API key when prompted in step [3/3] of the auth section below,"
         echo "        or run 'elnora auth login --api-key <key>' later. Get a key at"
         echo "        https://platform.elnora.ai/settings (API Keys tab)."
+        mark_done "elnora-cli"
     fi
+elif is_done "elnora-cli" && [ -z "${ELNORA_CLI_VERSION:-}" ]; then
+    # Resume fast-path: the installer's download/refresh is the only step here
+    # that does real network work even when elnora is already present. If we
+    # already refreshed it during an earlier run of THIS setup, skip the
+    # re-download so a resume after the Claude sign-in stop is near-instant.
+    # (Skipped when a version is pinned - an explicit pin should always re-run.)
+    export PATH="$HOME/.local/bin:$PATH"
+    echo "[2/10] Elnora CLI already installed ($(elnora --version 2>/dev/null || echo unknown)) and refreshed earlier this setup - skipping re-download."
 else
     current_elnora_version="$(elnora --version 2>/dev/null || echo 'unknown')"
     echo "[2/10] Elnora CLI already installed ($current_elnora_version) - refreshing to $elnora_install_label..."
     if run_step "Elnora CLI upgrade" /bin/bash -c "set -o pipefail; curl -fsSL https://cli.elnora.ai/install.sh | bash -s $elnora_install_args"; then
         export PATH="$HOME/.local/bin:$PATH"
         echo "  Done. Version: $(elnora --version 2>/dev/null || echo 'installed - restart terminal')"
+        mark_done "elnora-cli"
     fi
 fi
 
@@ -928,6 +979,7 @@ else
     elif claude auth status --json 2>/dev/null | grep -q '"loggedIn"[[:space:]]*:[[:space:]]*true'; then
         email=$(claude auth status --json 2>/dev/null | grep -o '"email"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
         echo "      [OK] Already logged in as ${email:-unknown}"
+        mark_done "auth-claude"
     else
         echo "      Not logged in. A browser will open so you can sign in."
         echo "      [Y]es / [s]kip+continue without Claude / [q]uit script"
@@ -938,13 +990,30 @@ else
                 if claude auth login --claudeai; then
                     if claude auth status --json 2>/dev/null | grep -q '"loggedIn"[[:space:]]*:[[:space:]]*true'; then
                         echo "      [OK] Logged in."
+                        mark_done "auth-claude"
                     else
-                        echo "      [FAIL] Login flow returned but auth status still shows not logged in."
-                        echo "         Run manually:  claude auth login --claudeai"
+                        echo "      [FAIL] Login flow returned but you are still not signed in."
+                        echo ""
+                        echo "         This is the most common place setup stops. Nothing is lost."
+                        echo "         When you're ready, run the SAME command again:"
+                        echo ""
+                        echo "             bash setup-mac.sh"
+                        echo ""
+                        echo "         It resumes right here at the Claude sign-in step - every"
+                        echo "         tool above is already installed and is skipped instantly."
+                        echo "         To try the login by hand first:  claude auth login --claudeai"
                         exit 1
                     fi
                 else
-                    echo "      [FAIL] Login didn't complete. Re-run when ready:  bash setup-mac.sh"
+                    echo "      [FAIL] Claude sign-in didn't complete."
+                    echo ""
+                    echo "         This is the most common place setup stops. Nothing is lost."
+                    echo "         When you're ready, run the SAME command again:"
+                    echo ""
+                    echo "             bash setup-mac.sh"
+                    echo ""
+                    echo "         It resumes right here at the Claude sign-in step - every"
+                    echo "         tool above is already installed and is skipped instantly."
                     exit 1
                 fi
                 ;;
@@ -1008,6 +1077,7 @@ else
     elif gh auth status >/dev/null 2>&1; then
         gh_user=$(gh api user --jq .login 2>/dev/null || echo "unknown")
         echo "      [OK] Already logged in as $gh_user"
+        mark_done "auth-github"
     else
         echo "      Not logged in. Phase 2 needs this to create your starter repo."
         echo "      [Y]es / [s]kip (Phase 2 will prompt you again later)"
@@ -1017,6 +1087,7 @@ else
             [Yy]*|"")
                 if gh auth login --web --hostname github.com --git-protocol https; then
                     echo "      [OK] Logged in."
+                    mark_done "auth-github"
                 else
                     echo "      [WARN] Login didn't complete. Phase 2 will prompt you."
                 fi
@@ -1034,6 +1105,7 @@ else
         echo "      ELNORA_API_KEY set - skipping prompt."
     elif elnora auth status 2>/dev/null | grep -q '"authenticated"[[:space:]]*:[[:space:]]*true'; then
         echo "      [OK] Already authenticated."
+        mark_done "auth-elnora"
     else
         echo "      Not authenticated. Elnora uses an API key (not browser OAuth)."
         echo "      Get one at:  https://platform.elnora.ai/settings (API Keys tab)"
@@ -1058,6 +1130,7 @@ else
                 elnora auth login || true
                 if elnora auth status 2>/dev/null | grep -q '"authenticated"[[:space:]]*:[[:space:]]*true'; then
                     echo "      [OK] Saved."
+                    mark_done "auth-elnora"
                 else
                     echo "      [SKIP] Not authenticated. Try manually:  elnora auth login"
                 fi
