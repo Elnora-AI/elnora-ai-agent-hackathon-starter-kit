@@ -14,7 +14,7 @@ Setup (see docs/google-cloud-vertex-setup.md):
     gcloud services enable texttospeech.googleapis.com --project YOUR_PROJECT_ID
     export GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
 
-Pick a voice/language from https://cloud.google.com/text-to-speech/docs/voices
+Pick a voice/language from https://cloud.google.com/text-to-speech/docs/list-voices-and-types
 (default: en-US-Neural2-F). Writes nothing sensitive and stores no keys.
 """
 import argparse

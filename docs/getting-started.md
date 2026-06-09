@@ -50,6 +50,22 @@ Once configured, try:
 
 The more files you have in the vault, the more useful this becomes.
 
+### Use the tools the kit ships with
+
+A few capabilities are wired up out of the box:
+
+- **Live docs (Context7) and code search (grep):** "Look up the latest Next.js
+  app-router docs" or "find real-world examples of [pattern] on GitHub."
+- **Browser control (Chrome DevTools):** "Open this page and take a screenshot"
+  or "read the console errors on localhost:3000."
+- **Estonian language tools:** spell-check, word forms, and synonyms for any
+  Estonian text.
+- **Deploy and build UIs (Vercel + v0):** `/vercel:v0` to generate a UI,
+  `/vercel:deploy` to put it online. (Needs the Vercel integration from Phase 2.)
+- **Image, video, and voiceover (Vertex AI):** runnable scripts in
+  `examples/vertex/`. (Needs the Google Cloud integration from Phase 2 — see
+  `docs/google-cloud-vertex-setup.md`.)
+
 ### Try the plugins you installed
 
 If you installed `document-skills`:
@@ -84,7 +100,9 @@ The more context you give Claude in `CLAUDE.md`, the better it performs. Add:
 | `codex` | Start a new Codex conversation (if you installed Codex) |
 | `/help` | Show all available commands |
 | `/plugins` | Browse and install plugins |
-| `/commit` | Commit your changes (if commit-commands plugin is installed) |
+| `/commit` | Commit your changes (commit-commands plugin) |
+| `/vercel:v0` | Generate a UI with v0 (Vercel plugin) |
+| `/vercel:deploy` | Deploy your project to Vercel (Vercel plugin) |
 | `/clear` | Clear conversation and start fresh |
 | `Shift+Tab` (x2) | Toggle Plan Mode |
 | `Escape` | Stop Claude's current response |

@@ -14,7 +14,7 @@ you can generate UIs, components, and full apps from code.
 > **Hackathon note:** participants receive **v0 credits**. The API bills
 > against those credits, so you can drive v0 from the CLI without a paid
 > upgrade as long as credits remain. Check usage at
-> [v0.app/chat/settings/billing](https://v0.app/chat/settings/billing).
+> [v0.app/settings/billing](https://v0.app/settings/billing).
 
 There are two distinct surfaces — pick the right one:
 
@@ -25,7 +25,7 @@ There are two distinct surfaces — pick the right one:
 
 ## Setup (do this first)
 
-1. **Get an API key** — [v0.app/chat/settings/keys](https://v0.app/chat/settings/keys).
+1. **Get an API key** — [v0.app/settings/keys](https://v0.app/settings/keys).
    The key grants full access to the v0 account — treat it as a secret.
 2. **Store it as an env var**, never in code or flags. Add to `.env` (gitignored):
    ```bash

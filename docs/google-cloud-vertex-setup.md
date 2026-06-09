@@ -61,8 +61,9 @@ The agent can run these. Verify first: `gcloud --version`.
 
 **macOS** (Homebrew is cleanest):
 ```bash
-brew install --cask google-cloud-sdk
+brew install --cask gcloud-cli
 ```
+(Older docs call this cask `google-cloud-sdk` — it was renamed to `gcloud-cli`.)
 No Homebrew? Use the interactive installer:
 ```bash
 curl https://sdk.cloud.google.com | bash

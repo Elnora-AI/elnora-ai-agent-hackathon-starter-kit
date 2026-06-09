@@ -165,7 +165,7 @@ mode, follow these adjustments:
     commit for either of them. If you somehow run the self-clean *after*
     step 3 already committed, fold the change in with `git add CLAUDE.md
     && git commit --amend --no-edit`. The initial commit should be one
-    clean commit. Step 6's scaffolding cleanup then adds **one** more
+    clean commit. Step 9's scaffolding cleanup then adds **one** more
     commit ("chore: remove one-shot install scaffolding"), bringing the
     final count to exactly two. Anything other than two commits is a bug
     — surface it.
@@ -233,7 +233,7 @@ mode, follow these adjustments:
 - **Before printing `HANDOFF_COMPLETE`, verify ALL of these are true.** If
   any item is missing, finish it before declaring complete:
   1. `.git/` exists and `git log --oneline | wc -l` is `2` exactly: the
-     initial commit + the step 8 cleanup commit. `1` means cleanup
+     initial commit + the step 9 cleanup commit. `1` means cleanup
      didn't land; anything higher means an unexpected extra commit
      slipped in.
   2. Git remote state depends on which branch of step 3 ran:
@@ -253,7 +253,7 @@ mode, follow these adjustments:
      a real directory (not the `<ABSOLUTE_PATH_TO_YOUR_VAULT>` placeholder).
   4. `CLAUDE.md` no longer contains the `### First-run setup` heading or
      its body (`grep -c '### First-run setup' CLAUDE.md` should print `0`).
-  5. Step 6 cleanup ran: none of `install.sh`, `install.ps1`,
+  5. Step 9 cleanup ran: none of `install.sh`, `install.ps1`,
      `setup-mac.sh`, `setup-windows.ps1`, `INSTALL_FOR_AGENTS.md`,
      `RECOVERY.md`, `.elnora-ai-agent-hackathon-starter-kit-marker` exist on disk; `.vscode/`
      directory is gone. Run `for f in install.sh install.ps1 setup-mac.sh
@@ -349,7 +349,7 @@ test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
      ```
      rm .elnora-handoff-resume.json
      ```
-     This must happen before the step 8 cleanup commit so the marker
+     This must happen before the step 9 cleanup commit so the marker
      doesn't end up in git history.
 
   Steps 4–6 then run as normal.
@@ -1057,7 +1057,7 @@ before `vercel --prod`.**
 
 #### 6d. Set up v0
 
-1. Human step: get an API key at <https://v0.app/chat/settings/keys>.
+1. Human step: get an API key at <https://v0.app/settings/keys>.
 2. Store it as a secret in `.env` (gitignored) — never in code or chat:
    ```bash
    echo 'V0_API_KEY=their-key' >> .env
@@ -1124,11 +1124,108 @@ ask for any other Google AI capability.
 If they decline: "No problem — say 'set up Google Cloud' or 'set up Vertex'
 whenever you want image, video, or voice generation."
 
-### 8. Final cleanup — strip one-shot install scaffolding
+### 8. Google Workspace CLI (gws) — optional, ONLY if they use Gmail / Google Workspace
+
+This one is **conditional**: it's only useful to people who actually live in
+Google Workspace. If the user doesn't use Gmail or a Google account, skip the
+whole step — don't pitch it, don't install it. There's nothing here for them.
+
+[`gws`](https://github.com/googleworkspace/cli) is one CLI for all of Google
+Workspace — Drive, Gmail, Calendar, Sheets, Docs, Chat, Admin — built for AI
+agents. It reads Google's Discovery Service at runtime, returns structured JSON,
+and ships 100+ agent skills. It's a **community project, not an official Google
+product** — say that plainly when you offer it.
+
+#### 8a. Gate: do they use Gmail / Google Workspace?
+
+Ask first, in plain language:
+
+> "Do you use Gmail or Google Workspace (Google Drive, Calendar, Docs) with a
+> Google account? If you do, I can set up a command-line tool that lets me read
+> and act on your Drive, Gmail, and Calendar for you."
+
+- **No / they don't use Google** → skip this entire step. Move to step 9.
+- **Yes** → continue to 8b.
+
+#### 8b. Pitch + ask (your own words)
+
+> "I can set up **gws**, a single command-line tool that reaches all of Google
+> Workspace — Drive, Gmail, Calendar, Sheets, Docs. Once it's authenticated I
+> can list and search your files, read and draft email, check your calendar,
+> and more — all from here. It's a community open-source project (not an
+> official Google product), it runs locally, and it uses your own Google
+> account. Want me to set it up?"
+
+Only proceed on a yes. If they decline: "No problem — say 'set up gws' or 'set
+up the Google Workspace CLI' anytime."
+
+#### 8c. Install the CLI
+
+Pick the install path that fits the machine (silently check `gws --version`
+first in case it's already there):
+
+- **macOS / Linux (Homebrew, already present from Phase 1):**
+
+  ```
+  brew install googleworkspace-cli
+  ```
+
+- **Any platform with Node 18+ (the kit already installed Node):**
+
+  ```
+  npm install -g @googleworkspace/cli
+  ```
+
+- **Windows:** prefer the npm path above, or download a pre-built binary from
+  <https://github.com/googleworkspace/cli/releases> and add it to `PATH`.
+
+**Gate**: `gws --version` prints a version string, exit 0.
+
+#### 8d. Authenticate
+
+`gws` needs a Google Cloud project with OAuth credentials. Its `auth setup`
+flow can create the project, enable the APIs, and run the browser login in one
+shot — and if the user already did step 7, they have a gcloud project and login
+ready, so this is quick.
+
+```
+gws auth setup     # creates/links a Cloud project, enables APIs, opens browser login
+gws auth login     # subsequent logins / scope changes
+```
+
+`gws auth setup` opens a browser — that's a **human step**, like the other
+logins in this doc. Tell the user:
+
+> "This opens a browser so you can pick your Google account and approve access.
+> I never see your password — just the access token your browser hands back.
+> Come back here when it says you're signed in."
+
+Wait for them to confirm. **Verification gate** — run a harmless read and
+confirm it returns JSON, not an auth error:
+
+```
+gws drive files list --params '{"pageSize": 3}'
+```
+
+A JSON list of files = working. An auth/permission error = re-run `gws auth
+login` and re-check. If it still fails after two tries, tell the user "Let's
+skip this for now, you can re-try later with 'set up gws'" and move on — this
+is optional and should not block the handoff.
+
+#### 8e. Show the user what they just got
+
+Briefly, in their words, two or three concrete things you can now do:
+
+- "I can search and pull files out of your Google Drive without you
+  downloading them."
+- "I can draft email in your Gmail for you to review before sending."
+- "I can check your Calendar and find open slots."
+
+### 9. Final cleanup — strip one-shot install scaffolding
 
 Phase 2 is functionally done. What's left is removing the install-time files
 the user no longer needs so their first repo is clean. **Do this only after
-steps 5–7 have completed** (or the user declined them — either way, all
+steps 5–8 have completed** (or the user declined them — either way, all
 earlier steps must be past tense). If any earlier step is still incomplete,
 finish it first and come back here.
 
@@ -1146,7 +1243,7 @@ finish it first and come back here.
 > last reference was step 5f (Chrome troubleshooting). All are now safely
 > deletable.
 
-#### 8a. Tell the user what you're about to do
+#### 9a. Tell the user what you're about to do
 
 Read this in plain language:
 
@@ -1158,7 +1255,7 @@ Read this in plain language:
 Do **not** ask for permission — this is the documented final step of the
 handoff, not an opt-in. Just announce and proceed.
 
-#### 8b. Delete the one-shot files
+#### 9b. Delete the one-shot files
 
 Run from the repo root:
 
@@ -1204,7 +1301,7 @@ done
 
 Output should be empty. Anything printed is a problem — surface it and stop.
 
-#### 8c. Fix the now-broken references in surviving docs
+#### 9c. Fix the now-broken references in surviving docs
 
 Two surviving files have markdown links that pointed at files we just
 deleted. Fix them with the `Edit` tool (do **not** use `python3 -c`,
@@ -1294,7 +1391,7 @@ irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starte
 MIT (inherited from the starter kit).
 ````
 
-#### 8d. Commit and push the cleanup
+#### 9d. Commit and push the cleanup
 
 ```
 git add -A
@@ -1318,13 +1415,13 @@ If `git push` fails, the local cleanup commit is still good — surface the
 push error and tell the user to retry with `git push origin main`. Do
 **not** roll back the deletions.
 
-> **Headless mode (`ELNORA_HANDOFF_MODE=headless`):** run 8b–8d as
+> **Headless mode (`ELNORA_HANDOFF_MODE=headless`):** run 9b–9d as
 > written, including the `Edit`/`Write` calls. The user-facing
-> announcement in 8a is unnecessary (no human to talk to) — skip the
+> announcement in 9a is unnecessary (no human to talk to) — skip the
 > announcement, do the actions. The cleanup commit is part of the
 > documented expected end state and the test fixture asserts on it.
 
-### 9. Done
+### 10. Done
 
 Tell the user:
 
