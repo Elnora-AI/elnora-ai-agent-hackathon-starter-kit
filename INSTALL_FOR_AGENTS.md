@@ -54,9 +54,10 @@ Two Claude-only notes that do **not** apply to Codex:
 - **`ToolSearch` / "load the tool first".** Skip it; you don't have that step.
 
 **Codex MCP setup (do this before any step that needs the browser MCP).**
-Codex does not read `.mcp.json`. The repo's `.mcp.json` lists three MCP
-servers (`chrome-devtools`, `context7`, `grep`). To make them available to
-Codex, ensure `~/.codex/config.toml` contains equivalent entries, e.g.:
+Codex does not read `.mcp.json`. The repo's `.mcp.json` lists four MCP
+servers (`chrome-devtools`, `context7`, `grep`, `estonian`). To make them
+available to Codex, ensure `~/.codex/config.toml` contains equivalent entries,
+e.g.:
 
 ```toml
 [mcp_servers.chrome-devtools]
@@ -68,14 +69,33 @@ url = "https://mcp.context7.com/mcp"
 
 [mcp_servers.grep]
 url = "https://mcp.grep.app"
+
+[mcp_servers.estonian]
+url = "https://estonian-mcp.fly.dev/mcp"
 ```
 
-Read `.mcp.json` as the source of truth and translate it. If a server is
-already present in `config.toml`, leave it. (`url`-based HTTP MCP entries
-require a recent Codex CLI; if yours rejects them, skip context7/grep — they
-are optional conveniences, not required for Phase 2.)
+Read `.mcp.json` as the source of truth and translate it — don't rely on this
+list staying current; if `.mcp.json` has more servers than shown here, port
+those too. If a server is already present in `config.toml`, leave it.
+(`url`-based HTTP MCP entries require a recent Codex CLI; if yours rejects them,
+skip context7/grep/estonian — they are optional conveniences, not required for
+Phase 2.)
 
 ### Non-interactive / test mode
+
+**CI / test environment variables.** These are behavior toggles, not secrets,
+and nothing in the repo loads them from `.env` — the setup scripts read them
+straight from the process environment, and CI sets them via `env:` blocks in
+the workflow files. They have no effect on a normal Claude Code session.
+
+| Variable | Set to | Effect | Used by |
+|----------|--------|--------|---------|
+| `ELNORA_SKIP_OPTIONAL_INSTALLS` | `1` | Skip optional installs (VS Code, Obsidian, etc.) for a lean/headless run | `install-smoke-test.yml`; useful for any headless run |
+| `ELNORA_SKIP_HANDOFF` | `1` | Print the would-be Phase 2 handoff prompt and exit instead of starting an agent session | `install-smoke-test.yml` |
+| `ELNORA_HANDOFF_MODE` | `headless` | Run the Phase 2 handoff non-interactively (`claude -p` / `codex exec`) instead of an interactive session | `handoff-e2e.yml` |
+
+(`ANTHROPIC_API_KEY` — the one genuine secret — is injected into `handoff-e2e`
+from GitHub Secrets, not from `.env`. See `.env.template`.)
 
 If your environment has `ELNORA_HANDOFF_MODE=headless` set, you are running
 inside the `handoff-e2e` test workflow. There is no human to talk to. In that
@@ -213,7 +233,7 @@ mode, follow these adjustments:
 - **Before printing `HANDOFF_COMPLETE`, verify ALL of these are true.** If
   any item is missing, finish it before declaring complete:
   1. `.git/` exists and `git log --oneline | wc -l` is `2` exactly: the
-     initial commit + the step 6 cleanup commit. `1` means cleanup
+     initial commit + the step 8 cleanup commit. `1` means cleanup
      didn't land; anything higher means an unexpected extra commit
      slipped in.
   2. Git remote state depends on which branch of step 3 ran:
@@ -329,7 +349,7 @@ test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
      ```
      rm .elnora-handoff-resume.json
      ```
-     This must happen before the step 6 cleanup commit so the marker
+     This must happen before the step 8 cleanup commit so the marker
      doesn't end up in git history.
 
   Steps 4–6 then run as normal.
@@ -985,11 +1005,130 @@ scientist that's usually:
 - "If a web app is misbehaving, I can read the console errors and
   network requests directly instead of asking you to paste them."
 
-### 6. Final cleanup — strip one-shot install scaffolding
+### 6. Vercel CLI + v0 — optional, offer it
+
+The repo already ships the **`vercel` plugin** (bundled and enabled) — so the
+deploy/setup/v0 skills and `/vercel:*` commands are live the moment the user
+trusts the folder. What the user still needs is the **CLI binary** and, for v0,
+an **API key**. Offer to set these up; many hackathon participants will want
+both (and v0 ships with **credits** for them).
+
+> **If you are Codex:** the `vercel` plugin is a Claude Code artifact — the
+> `/vercel:*` slash commands and the deploy/setup/v0 *skills* do not exist for
+> you. Everything below still works; just drive it through the plain CLI and
+> SDK instead of the skill names. Wherever this section says "the `deploy`
+> skill" or `/vercel:deploy`, run `vercel` / `vercel --prod` directly; wherever
+> it says "the `v0` skill" or `/vercel:v0`, call the v0 Platform API via the
+> v0-sdk (or `pnpm create v0-sdk-app@latest`) using `V0_API_KEY` from `.env`.
+> The install steps (CLI binary, login, API key) are identical for both agents.
+
+Don't force it — ask, and only proceed on a yes. If they decline, tell them
+they can later just say "set up Vercel" or "set up v0."
+
+#### 6a. Pre-flight (silent)
+
+```bash
+vercel --version    # already installed?
+node --version      # need Node 18+ for the CLI and v0-sdk
+```
+
+#### 6b. Pitch + ask (read in your own words)
+
+> "I can set up Vercel so I can deploy your apps for you, plus **v0** —
+> Vercel's AI app builder. You've got v0 credits as a hackathon participant, so
+> I can generate and iterate on real UIs from a prompt. Want me to wire it up?"
+
+#### 6c. Install + log in to Vercel
+
+```bash
+npm i -g vercel
+vercel login        # human step: opens a browser / device login
+```
+
+When they have a project to deploy, link it from the project dir:
+```bash
+vercel link         # single project
+# OR
+vercel link --repo  # monorepo
+```
+After that, deploys are just `/vercel:deploy` (the `deploy` skill checks
+prerequisites first). **Production deploys overwrite live URLs — always confirm
+before `vercel --prod`.**
+
+#### 6d. Set up v0
+
+1. Human step: get an API key at <https://v0.app/chat/settings/keys>.
+2. Store it as a secret in `.env` (gitignored) — never in code or chat:
+   ```bash
+   echo 'V0_API_KEY=their-key' >> .env
+   ```
+3. Verify:
+   ```bash
+   curl -s https://api.v0.dev/v1/user -H "Authorization: Bearer $V0_API_KEY" | head
+   ```
+   JSON user object = working. `401` = bad key or billing/credits not enabled.
+4. From here the **`v0` skill** drives it (`/vercel:v0`). Fast path to a new
+   app: `pnpm create v0-sdk-app@latest my-app`. Full reference lives in the
+   skill at `plugins/vercel/skills/v0/SKILL.md`.
+
+If they decline: "No problem — say 'set up Vercel' or 'set up v0' anytime."
+
+### 7. Google Cloud + Vertex AI (image, video, voiceover + more) — optional, offer it
+
+This is the big one. A single one-time setup unlocks Google Cloud's whole AI
+surface: **image generation** (nano-banana), **video** (Veo 3), **voiceover**
+(Text-to-Speech), Gemini text, Imagen, Speech-to-Text, embeddings, translation,
+and more. Offer it — it's a crowd-pleaser at a hackathon — but it's the heaviest
+setup here (two browser logins, a billing-enabled project), so only proceed on a
+yes.
+
+**Your script for this is [`docs/google-cloud-vertex-setup.md`](docs/google-cloud-vertex-setup.md).**
+Follow it top to bottom. It's written for exactly this hand-holding. Key points:
+
+- **You run** the installs and config commands (gcloud install, enable the
+  APIs, set env vars, run the example scripts in `examples/vertex/`).
+- **Only the human can**: create/pick a **billing-enabled GCP project** (and
+  redeem any hackathon GCP credits onto it), and complete the **two browser
+  logins** — `gcloud auth login` and `gcloud auth application-default login`.
+  Never invent a project ID; use the one they give you.
+- Everything uses **their own** GCP project. The kit ships **no** Google
+  credentials and you must never commit any.
+- **This setup is general, not just the three example scripts.** Once ADC is
+  done, you can reach ANY Google Cloud AI API — mint a token with
+  `gcloud auth application-default print-access-token` and call the REST
+  endpoint (the "Call any Google Cloud AI API" recipe in the guide), or use the
+  `google-genai` SDK for Vertex models. If a participant asks for a capability
+  the example scripts don't cover, set it up — don't say it's unsupported.
+
+#### 7a. Pitch + ask (your own words)
+
+> "I can set up Google Cloud so I can generate **images** (nano-banana),
+> **video** (Veo 3), and **voiceover** for you — and from there reach the rest
+> of Google's AI models too. It's a bit more setup — you'll need a Google Cloud
+> project with billing on (your hackathon credits cover the usage), and you'll
+> do two quick browser logins. Want to do it now?"
+
+#### 7b. If yes
+
+Work through `docs/google-cloud-vertex-setup.md`. End state to verify (each
+writes a file into `examples/vertex/out/`):
+```bash
+python3 -m pip install -r examples/vertex/requirements.txt
+python3 examples/vertex/generate_image_nano_banana.py "a watercolor fox reading a book"   # PNG
+python3 examples/vertex/generate_voiceover_tts.py "Welcome to the hackathon."             # MP3 (no pip deps)
+```
+A PNG and an MP3 mean image gen and voiceover both work. Then show them the Veo
+video script (needs a region + GCS bucket — see the guide) and mention they can
+ask for any other Google AI capability.
+
+If they decline: "No problem — say 'set up Google Cloud' or 'set up Vertex'
+whenever you want image, video, or voice generation."
+
+### 8. Final cleanup — strip one-shot install scaffolding
 
 Phase 2 is functionally done. What's left is removing the install-time files
 the user no longer needs so their first repo is clean. **Do this only after
-step 5 has completed** (or the user declined step 5 — either way, all
+steps 5–7 have completed** (or the user declined them — either way, all
 earlier steps must be past tense). If any earlier step is still incomplete,
 finish it first and come back here.
 
@@ -1007,7 +1146,7 @@ finish it first and come back here.
 > last reference was step 5f (Chrome troubleshooting). All are now safely
 > deletable.
 
-#### 6a. Tell the user what you're about to do
+#### 8a. Tell the user what you're about to do
 
 Read this in plain language:
 
@@ -1019,7 +1158,7 @@ Read this in plain language:
 Do **not** ask for permission — this is the documented final step of the
 handoff, not an opt-in. Just announce and proceed.
 
-#### 6b. Delete the one-shot files
+#### 8b. Delete the one-shot files
 
 Run from the repo root:
 
@@ -1065,7 +1204,7 @@ done
 
 Output should be empty. Anything printed is a problem — surface it and stop.
 
-#### 6c. Fix the now-broken references in surviving docs
+#### 8c. Fix the now-broken references in surviving docs
 
 Two surviving files have markdown links that pointed at files we just
 deleted. Fix them with the `Edit` tool (do **not** use `python3 -c`,
@@ -1118,8 +1257,13 @@ what's useful for day-to-day work.
   conversation. Customize freely as your workflow evolves.
 - `.claude/` — Claude Code settings, plugins, and per-user knowledge-base
   config (`knowledge-base.local.md` is gitignored).
-- `.mcp.json` — MCP server configuration (Chrome DevTools, Context7, grep).
-- `docs/` — daily-workflow guide and Chrome DevTools setup notes.
+- `.mcp.json` — MCP server configuration (Chrome DevTools, Context7, grep,
+  Estonian language tools).
+- `plugins/` — bundled local plugins, including `vercel` (deploy + v0).
+- `examples/vertex/` — runnable image (nano-banana), video (Veo 3), and
+  voiceover (TTS) scripts.
+- `docs/` — daily-workflow guide, Chrome DevTools setup, and the Google
+  Cloud + Vertex AI setup guide.
 - `TOOLS.md` — installed plugins and MCP servers.
 - `marketplace-plugins.md` — recommended Claude Code plugins.
 
@@ -1150,7 +1294,7 @@ irm https://raw.githubusercontent.com/Elnora-AI/elnora-ai-agent-hackathon-starte
 MIT (inherited from the starter kit).
 ````
 
-#### 6d. Commit and push the cleanup
+#### 8d. Commit and push the cleanup
 
 ```
 git add -A
@@ -1174,13 +1318,13 @@ If `git push` fails, the local cleanup commit is still good — surface the
 push error and tell the user to retry with `git push origin main`. Do
 **not** roll back the deletions.
 
-> **Headless mode (`ELNORA_HANDOFF_MODE=headless`):** run 6b–6d as
+> **Headless mode (`ELNORA_HANDOFF_MODE=headless`):** run 8b–8d as
 > written, including the `Edit`/`Write` calls. The user-facing
-> announcement in 6a is unnecessary (no human to talk to) — skip the
+> announcement in 8a is unnecessary (no human to talk to) — skip the
 > announcement, do the actions. The cleanup commit is part of the
 > documented expected end state and the test fixture asserts on it.
 
-### 7. Done
+### 9. Done
 
 Tell the user:
 

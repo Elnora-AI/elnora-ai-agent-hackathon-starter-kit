@@ -849,13 +849,26 @@ obsidian_version() {
 # count use the same data. Storing in parallel arrays preserves output order
 # and avoids re-running each version probe twice (once for the row, once for
 # the counter).
-SUMMARY_LABELS=("Node.js" "Git" "Python" "VS Code" "Claude Code" "GitHub CLI" "Obsidian")
+# The coding-agent row(s) depend on what the user chose to install: Claude Code,
+# Codex, or both. Build the arrays in two halves so a Codex-only run never shows
+# a phantom "Claude Code NOT INSTALLED" line (and vice versa).
+SUMMARY_LABELS=("Node.js" "Git" "Python" "VS Code")
 SUMMARY_VALUES=(
     "$(node --version 2>/dev/null || true)"
     "$(git --version 2>/dev/null || true)"
     "$(python3 --version 2>/dev/null || true)"
     "$(vscode_version)"
-    "$(claude --version 2>/dev/null || true)"
+)
+if agent_installed claude; then
+    SUMMARY_LABELS+=("Claude Code")
+    SUMMARY_VALUES+=("$(claude --version 2>/dev/null || true)")
+fi
+if agent_installed codex; then
+    SUMMARY_LABELS+=("Codex")
+    SUMMARY_VALUES+=("$(codex --version 2>/dev/null || true)")
+fi
+SUMMARY_LABELS+=("GitHub CLI" "Obsidian")
+SUMMARY_VALUES+=(
     "$(gh --version 2>/dev/null | head -1 || true)"
     "$(obsidian_version)"
 )

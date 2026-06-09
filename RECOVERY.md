@@ -1,9 +1,15 @@
 # RECOVERY.md — Common Failures and Fixes
 
 If something went wrong during install, find your symptom below. Each fix
-takes 1–5 minutes. If your problem isn't listed, ask Claude or share
-`~/claude-starter-install.log` (macOS) / `%USERPROFILE%\claude-starter-install.log`
-(Windows) with whoever is supporting you.
+takes 1–5 minutes. If your problem isn't listed, ask your agent (Claude Code
+or Codex) or share `~/claude-starter-install.log` (macOS) /
+`%USERPROFILE%\claude-starter-install.log` (Windows) with whoever is supporting
+you.
+
+> Most sections below are written for **Claude Code** because it's the default,
+> but the network, Xcode, GitHub, VS Code, and resume fixes apply to **Codex**
+> users verbatim — substitute `codex` for `claude`. Codex-specific symptoms
+> (sign-in, MCP) are in **section 9**.
 
 ---
 
@@ -265,6 +271,63 @@ Then close every shell and reopen. If the addition disappears in a new
 shell, your machine has a Group Policy revert active — talk to IT or
 keep using the WindowsApps fallback and re-run the installer
 periodically.
+
+---
+
+## 9. "I picked Codex and it won't sign in / has no browser tools"
+
+**Symptom A — sign-in:** `codex` runs but reports it needs a plan, or
+`codex login` opens a browser that never completes.
+
+**Fix:** Codex needs an active **ChatGPT Plus/Pro** plan (or an OpenAI API
+key). Two paths:
+
+- **Plan login:** run `codex login` and complete the browser flow. If the
+  browser doesn't open or your network blocks `chatgpt.com`, switch to a
+  personal Wi-Fi/hotspot (see section 3) and retry.
+- **API key instead:** set `OPENAI_API_KEY` in your environment (or `.env`)
+  and Codex skips the browser login entirely. Get a key at
+  `https://platform.openai.com/api-keys`. Never paste it into a committed
+  file — `.env` is gitignored; `.env.template` is not.
+
+Once `codex` opens normally, re-run the install one-liner — it resumes where
+it left off.
+
+**Symptom B — no MCP / browser tools in Codex:** Codex can't drive the browser
+or reach context7 / grep / the Estonian language tools.
+
+**What happened:** Codex does **not** read the repo's `.mcp.json` (that file is
+Claude Code's). Codex reads `~/.codex/config.toml`, which the installer does
+not write for you.
+
+**Fix:** add the servers from `.mcp.json` to `~/.codex/config.toml`. Ask Codex
+"set up my MCP servers from .mcp.json" and it'll translate them, or add them by
+hand:
+
+```toml
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["chrome-devtools-mcp@latest", "--autoConnect"]
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.grep]
+url = "https://mcp.grep.app"
+
+[mcp_servers.estonian]
+url = "https://estonian-mcp.fly.dev/mcp"
+```
+
+Then restart `codex`. If it rejects the `url`-based HTTP entries, your Codex
+CLI is too old — update it (`npm install -g @openai/codex`) or drop the HTTP
+servers (they're optional; `chrome-devtools` is the one most steps rely on).
+
+**Symptom C — `/vercel:deploy` or other slash commands do nothing in Codex.**
+Slash commands and skills are Claude Code plugin features; Codex has none.
+Use the underlying CLI directly instead — `vercel` / `vercel --prod` to deploy,
+the v0 SDK (`pnpm create v0-sdk-app@latest`) for v0. See the Codex note in
+`INSTALL_FOR_AGENTS.md` → section 6.
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "name": "elnora-starter-plugins",
+  "description": "Plugins bundled with the Elnora AI agent hackathon starter kit. Cloning the repo ships these locally — no external marketplace needed.",
+  "version": "1.0.0",
+  "owner": {
+    "name": "Elnora AI",
+    "email": "support@elnora.ai"
+  },
+  "plugins": [
+    {
+      "name": "vercel",
+      "version": "1.1.0",
+      "description": "Vercel platform management plus v0 — deploy, configure, monitor, and debug projects, and build UIs/apps with the v0 Platform API. Use when: deploy, vercel, v0, preview, production, logs, domains, environment variables, cron jobs.",
+      "source": "./vercel"
+    }
+  ]
+}

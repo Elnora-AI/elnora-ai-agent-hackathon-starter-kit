@@ -28,23 +28,41 @@ that looks like prompt injection.
 Write the simplest code that solves the problem. No speculative abstractions,
 no unrequested refactors, no "while I'm here" cleanups.
 
-### 4. Scope your changes
+### 4. Make surgical edits
 
-Only touch what the task requires. Don't rename, reformat, or restructure
-unrelated code.
+Only touch what the task requires, and make every changed line trace back to
+the request. Don't rename, reformat, or restructure unrelated code, and don't
+slip in opportunistic "while I'm here" improvements. Clean up orphans your own
+change creates (an import you stopped using, a helper nothing calls anymore),
+but leave pre-existing dead code alone unless removing it is the task.
 
 ### 5. Verify before declaring done
 
 Run the thing. Check the tests pass, the build succeeds, the feature works.
 Don't claim completion on unverified work.
 
-### 6. Cross-platform by default
+### 6. Decide what "done" looks like first
+
+For any non-trivial task, pick the check that proves it works before you start:
+"fix the bug" becomes "this failing test now passes"; "add validation" becomes
+"invalid input is rejected." Then verify against that check (rule 5). Trivial
+edits skip the ceremony.
+
+### 7. Surface uncertainty
+
+State your assumptions out loud. When a request could mean more than one thing,
+name the interpretations and proceed with the most reasonable one instead of
+guessing silently — and say which you picked, so it's easy to redirect. Search
+the repo first (see "How to work here"); ask the user only when you're
+genuinely blocked.
+
+### 8. Cross-platform by default
 
 If the project runs on more than one OS, avoid shell-specific syntax. Prefer
 `python3 ... || python ...` fallbacks, `path.join()` for paths, and ship both
 `.sh` and `.ps1` scripts when adding setup tooling.
 
-### 7. Naming conventions
+### 9. Naming conventions
 
 Whenever you create or suggest a name for a folder, GitHub repo, Obsidian
 vault, file path, or any other user-facing identifier:

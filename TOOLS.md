@@ -15,13 +15,16 @@ here, it isn't wired in by default.
 | Claude Code settings | `.claude/settings.json` | Enabled plugins, marketplaces, permissions, env vars |
 | User overrides | `.claude/settings.local.json` (gitignored) | Per-user local settings |
 | MCP servers | `.mcp.json` | Project-scoped MCP wiring |
+| Bundled plugins | `plugins/` (catalog: `plugins/.claude-plugin/marketplace.json`) | Local plugin marketplace shipped in the repo (currently `vercel`, incl. v0) |
+| Vertex examples | `examples/vertex/` | Runnable image (nano-banana), video (Veo 3) + voiceover (TTS) scripts |
 | Knowledge base | `.claude/knowledge-base.local.md` (gitignored) | Vault path config — read, never hardcode |
 | Project rules | `CLAUDE.md` | Always-loaded context + conventions |
 | Recovery / handoff | `INSTALL_FOR_AGENTS.md`, `RECOVERY.md` | Phase 2 setup + repair flows |
 | CI | `.github/workflows/*.yml` | bootstrap-e2e, handoff-e2e, install-smoke-test, codeql |
 
 No local `hooks/`, `commands/`, `agents/`, or `skills/` directories exist in
-`.claude/`. All slash commands and skills come from plugins.
+`.claude/`. Slash commands and skills come from plugins — including the
+repo-bundled `vercel` plugin under `plugins/`.
 
 ---
 
@@ -35,18 +38,24 @@ From `.claude/settings.json` `enabledPlugins`. Everything else is opt-in via
 | **commit-commands** | claude-code-plugins | `/commit`, `/commit-push-pr`, `/clean_gone` |
 | **context7** | claude-plugins-official | Up-to-date library/framework docs via MCP (same tools as the standalone `context7` MCP server) |
 | **claude-md-management** | claude-plugins-official | `/revise-claude-md` — audit + improve `CLAUDE.md` files |
+| **vercel** | elnora-starter-plugins (local) | Vercel deploy/setup/integration skills + **v0** (AI app builder); `/vercel:deploy`, `/vercel:setup`, `/vercel:logs`, `/vercel:integration`, `/vercel:v0`. Needs the `vercel` CLI + (for v0) a `V0_API_KEY` — see `INSTALL_FOR_AGENTS.md`. |
 
 ---
 
 ## MCP servers (`.mcp.json`)
 
-Project-scoped, loaded for every session in this repo.
+Project-scoped, loaded for every session in this repo. All four are
+auto-approved on first launch via `enableAllProjectMcpServers: true` in
+`.claude/settings.json` — no per-server approval prompt. Verify with
+`claude mcp list` (each should read `Connected`). For Codex, port these into
+`~/.codex/config.toml` (Codex does not read `.mcp.json`).
 
 | Server | Transport | Endpoint | What it provides |
 |--------|-----------|----------|------------------|
 | **context7** | http | `https://mcp.context7.com/mcp` | `query-docs`, `resolve-library-id` — current library/framework docs |
 | **grep** | http | `https://mcp.grep.app` | `searchGitHub` — semantic code search across **public** GitHub repos. **Privacy:** queries are sent to a third-party service; never search proprietary code or secrets. |
 | **chrome-devtools** | stdio (`npx chrome-devtools-mcp@latest --autoConnect`) | local | Take over your real Chrome via CDP — list/create tabs, navigate, screenshot, run JS, read network/console, Lighthouse. Requires Chrome 144+ running. Setup + recipes: [`docs/chrome-devtools-mcp-setup.md`](docs/chrome-devtools-mcp-setup.md). Windows: `setup-windows.ps1` writes a user-level override wrapping `npx` in `cmd /c`. |
+| **estonian** | http | `https://estonian-mcp.fly.dev/mcp` | Estonian language tools — spell check, morphology, synonyms, register. Use for any Estonian writing/proofreading instead of guessing case forms. |
 
 Other plugins (e.g. `playwright`) ship their own MCP servers and only load
 when you enable that plugin via `/plugins`.
@@ -60,13 +69,19 @@ From `extraKnownMarketplaces` in `.claude/settings.json`. Browse with
 
 | Marketplace | Source | autoUpdate | Default-enabled plugins |
 |-------------|--------|------------|-------------------------|
+| **elnora-starter-plugins** | local `directory: ./plugins` | n/a | `vercel` — bundled in the repo; auto-registers when you trust the folder, no clone needed |
 | **claude-code-plugins** | `anthropics/claude-code` | yes | `commit-commands` |
 | **claude-plugins-official** | `anthropics/claude-plugins-official` | yes | `context7`, `claude-md-management` |
 | **anthropic-agent-skills** | `anthropics/skills` | yes | none (recommended: `document-skills`) |
 | **knowledge-work-plugins** | `anthropics/knowledge-work-plugins` | yes | none — sales, finance, legal, HR, marketing, product, support, data, design, bio-research, etc. |
 | **claude-code-workflows** | `wshobson/agents` | yes | none — community workflows (security, docs, analytics, HR/legal) |
+| **claude-for-legal** | `anthropics/claude-for-legal` | yes | none — commercial, privacy, product, corporate, employment, IP legal agents (contracts, NDAs, DPAs) |
+| **claude-for-financial-services** | `anthropics/financial-services` | yes | none — IB, equity research, PE, wealth mgmt, comps/DCF/LBO, earnings, GL reconciliation |
+| **superpowers-marketplace** | `obra/superpowers-marketplace` | yes | none — brainstorming, writing plans, parallel agents, TDD, systematic debugging, git worktrees |
+| **addy-agent-skills** | `addyosmani/agent-skills` | yes | none — a focused set of high-quality agent skills |
 
-See `marketplace-plugins.md` for the full per-marketplace plugin catalog.
+All four above are **registered only** — browse and install via `/plugins`. See
+`marketplace-plugins.md` for the full per-marketplace plugin catalog.
 
 ---
 
@@ -77,7 +92,7 @@ boundary**. It pattern-matches surface form only.
 
 **Allow** (auto-approved, no prompt):
 - Built-ins: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, `Agent`, `NotebookEdit`, `Monitor`, `Bash`
-- MCP: `mcp__context7__*`, `mcp__grep__*`, `mcp__chrome-devtools__*`
+- MCP: `mcp__context7__*`, `mcp__grep__*`, `mcp__chrome-devtools__*`, `mcp__estonian__*`
 
 **Deny** (blocked outright):
 - Force pushes: `git push --force[ *]`, `git push -f[ *]`
@@ -85,6 +100,11 @@ boundary**. It pattern-matches surface form only.
 - `rm -rf *`, `rm -fr *`, `rm -rf /*`, `rm -rf ~/*`, `rm -rf $HOME*`
 - `sudo *`
 - `shutdown*`, `reboot*`, `halt*`
+- Destructive/irreversible Vercel ops: `vercel remove/rm`, `vercel project rm`,
+  `vercel domains rm/buy/move/transfer-in`, `vercel env add/update/rm`,
+  `vercel alias/certs/blob/cache/integration/flags/redirects` removals,
+  `vercel promote/rollback`, and `vercel api` calls with a mutating method
+  (`-X POST/PUT/PATCH/DELETE`). Read-only `vercel` commands are not denied.
 
 ---
 
@@ -102,7 +122,8 @@ Other settings: `autoUpdatesChannel: latest`, `remoteControlAtStartup: true`,
 
 ## Slash commands
 
-All come from enabled plugins — no project-local commands.
+All come from plugins (the bundled `vercel` plugin plus the marketplace ones) —
+no `.claude/`-local commands.
 
 | Command | Source | What it does |
 |---------|--------|--------------|
@@ -110,6 +131,11 @@ All come from enabled plugins — no project-local commands.
 | `/commit-push-pr` | commit-commands | Commit, push, open PR |
 | `/clean_gone` | commit-commands | Prune branches deleted on remote (incl. worktrees) |
 | `/revise-claude-md` | claude-md-management | Audit + update `CLAUDE.md` |
+| `/vercel:deploy` | vercel | Deploy the current project |
+| `/vercel:setup` | vercel | Install Vercel CLI + link project |
+| `/vercel:logs` | vercel | View deployment logs |
+| `/vercel:integration` | vercel | Manage Vercel Marketplace integrations |
+| `/vercel:v0` | vercel | Generate/iterate a UI or app with v0 |
 | `/plugins` | built-in | Browse / install / remove plugins |
 | `/help`, `/clear`, `/config` | built-in | Standard CLI |
 
@@ -122,6 +148,10 @@ them when a user message matches.
 
 `claude-md-management` exposes a `claude-md-improver` skill alongside its
 slash command.
+
+The bundled `vercel` plugin adds: `vercel` (CLI reference + decision tree),
+`deploy`, `setup`, `integration`, and `v0` (build/iterate UIs via the v0
+Platform API). These fire on Vercel/v0-specific phrasing, not generic words.
 
 ---
 
@@ -158,6 +188,22 @@ Not invokable from chat, but agents may need to know they exist.
 | `.github/scripts/lint-ascii.py` | Enforce ASCII-only in shipped scripts |
 | `tests/handoff/` | Handoff flow fixtures |
 | `cache/` | Runtime scratch (gitignored except `README.md`) |
+| `plugins/vercel/` | Bundled Vercel + v0 plugin (skills, commands, references) |
+| `examples/vertex/` | Runnable image + video + voiceover scripts (`out/` gitignored) |
+
+---
+
+## External CLIs / cloud (agent-assisted setup)
+
+Not wired in by default — the binary/credentials are installed per-user via
+`INSTALL_FOR_AGENTS.md` (optional steps). Once set up, the bundled plugin and
+example scripts use them.
+
+| Tool | What it's for | Setup |
+|------|---------------|-------|
+| **Vercel CLI** (`vercel`) | Deploy/manage projects | `npm i -g vercel` + `vercel login`; `INSTALL_FOR_AGENTS.md` step 6 |
+| **v0** (Vercel AI app builder) | Generate UIs/apps; hackathon **credits** | `V0_API_KEY` in `.env`; `v0` skill / `INSTALL_FOR_AGENTS.md` step 6 |
+| **gcloud + Vertex AI** | Image (nano-banana), video (Veo 3), voiceover (TTS) — and any Google Cloud AI API via the ADC-token recipe | [`docs/google-cloud-vertex-setup.md`](docs/google-cloud-vertex-setup.md); `INSTALL_FOR_AGENTS.md` step 7. Uses the user's **own** GCP project — no committed credentials. |
 
 ---
 
@@ -174,4 +220,4 @@ Not invokable from chat, but agents may need to know they exist.
 
 ---
 
-_Last updated: 2026-04-28_
+_Last updated: 2026-06-10_

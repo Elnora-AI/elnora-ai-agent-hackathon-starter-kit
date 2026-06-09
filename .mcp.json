@@ -15,6 +15,10 @@
     "grep": {
       "type": "http",
       "url": "https://mcp.grep.app"
+    },
+    "estonian": {
+      "type": "http",
+      "url": "https://estonian-mcp.fly.dev/mcp"
     }
   }
 }

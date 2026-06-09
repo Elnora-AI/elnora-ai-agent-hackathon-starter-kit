@@ -1,0 +1,13 @@
+{
+  "name": "vercel",
+  "version": "1.1.0",
+  "description": "Vercel platform management plus v0 — deploy, configure, monitor, and debug projects, and build UIs/apps with the v0 Platform API. Use when: deploy, vercel, v0, preview, production, logs, domains, environment variables, cron jobs.",
+  "author": {
+    "name": "Elnora AI",
+    "email": "support@elnora.ai"
+  },
+  "keywords": [
+    "vercel", "v0", "deploy", "hosting", "serverless", "domains",
+    "environment-variables", "logs", "cron", "next.js"
+  ]
+}

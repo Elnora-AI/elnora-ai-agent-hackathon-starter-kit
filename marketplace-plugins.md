@@ -112,24 +112,66 @@ See the full list of 40+ plugins on [github.com/anthropics/knowledge-work-plugin
 
 The marketplace has 15+ plugins total; browse the rest via `/plugins`.
 
----
+### 6. Claude for Legal (`claude-for-legal`)
 
-## Other Marketplaces (add later)
+**Source**: github.com/anthropics/claude-for-legal
+**Trust level**: High — official Anthropic legal marketplace
+**Status**: Registered, **no plugins enabled by default** — browse and install what you need via `/plugins`.
 
-These are community-maintained. Quality is generally good but not Anthropic-verified.
-You can add them via `/plugins` > "Add marketplace" when you're ready.
+In-house legal agents for contracts, NDAs, and DPAs.
 
-### Superpowers — alternate source (`superpowers-marketplace`)
+| Plugin | What it gives you | Best for |
+|--------|-------------------|----------|
+| **commercial-legal** | Vendor/MSA/SaaS review, NDA triage, playbook deviations, renewals | Commercial contracts |
+| **privacy-legal** | DPA review, PIAs, DSAR responses, reg gap analysis | Privacy / data protection |
+| **product-legal** | Launch review, marketing-claims review, feature risk | Product counsel |
+| **corporate-legal** | M&A diligence, board minutes, written consents, entity compliance | Corporate / secretary |
+| **employment-legal** | Offer/termination review, leave tracking, investigations | Employment / HR legal |
+| **ip-legal** | IP-focused agents and skills | Patents / IP |
+
+The marketplace has more (regulatory, AI governance, litigation, legal clinic, etc.); browse via `/plugins`.
+
+### 7. Claude for Financial Services (`claude-for-financial-services`)
+
+**Source**: github.com/anthropics/financial-services
+**Trust level**: High — official Anthropic financial-services marketplace
+**Status**: Registered, **no plugins enabled by default** — browse and install what you need via `/plugins`.
+
+Reference agents and skills for IB, equity research, PE, and wealth management — comps, DCF, LBO, earnings, GL reconciliation.
+
+| Plugin | What it gives you | Best for |
+|--------|-------------------|----------|
+| **investment-banking** | Comps, DCF, LBO, pitch support | IB / M&A advisory |
+| **equity-research** | Earnings reviews, model building, valuation | Research analysts |
+| **private-equity** | Deal screening, diligence, valuation review | PE / buyside |
+| **wealth-management** | Client prep, portfolio workflows | Wealth / advisory |
+| **gl-reconciler** | GL reconciliation, month-end close, statement audit | Finance / accounting |
+| **fund-admin** | Fund administration workflows | Fund ops |
+
+20+ plugins total (plus partner data connectors like LSEG and S&P Global); browse via `/plugins`.
+
+### 8. Superpowers (`superpowers-marketplace`)
 
 **Source**: github.com/obra/superpowers-marketplace
-**What's in it**: Advanced workflow skills — brainstorming, TDD, systematic debugging, parallel agent dispatch. Best for power users.
+**Trust level**: Medium — community-maintained (Jesse Vincent / obra), not Anthropic-verified
+**Status**: Registered, **no plugins enabled by default** — browse and install what you need via `/plugins`.
 
-> **Note**: `superpowers` is **not** enabled by default in `.claude/settings.json`
-> — only `commit-commands`, `context7`, and `claude-md-management` are.
-> Two ways to add it: install from the Anthropic-maintained
-> `claude-plugins-official` marketplace (already registered in
-> `extraKnownMarketplaces`, just enable via `/plugins`), or add the
-> community-maintained `obra/superpowers-marketplace` source for obra's variant.
+Advanced workflow skills for power users — brainstorming, writing plans, parallel agent dispatch, TDD, systematic debugging, git worktrees.
+
+> A related `superpowers` plugin is also available in the Anthropic-maintained
+> `claude-plugins-official` marketplace — either source works; enable via `/plugins`.
+
+### 9. Addy Osmani Agent Skills (`addy-agent-skills`)
+
+**Source**: github.com/addyosmani/agent-skills
+**Trust level**: Medium — community-maintained (Addy Osmani), not Anthropic-verified
+**Status**: Registered, **no plugins enabled by default** — browse and install what you need via `/plugins`.
+
+A focused set of high-quality agent skills.
+
+| Plugin | What it gives you | Best for |
+|--------|-------------------|----------|
+| **agent-skills** | Addy Osmani's curated agent-skill collection | Anyone wanting a small, high-signal skill set |
 
 ---
 
