@@ -1130,8 +1130,9 @@ python3 examples/vertex/generate_image_nano_banana.py "a watercolor fox reading 
 python3 examples/vertex/generate_voiceover_tts.py "Welcome to the hackathon."             # MP3 (no pip deps)
 ```
 A PNG and an MP3 mean image gen and voiceover both work. Then show them the Veo
-video script (needs a region + GCS bucket — see the guide) and mention they can
-ask for any other Google AI capability.
+video script (needs a regional location like us-central1 — see the guide; the
+video returns inline, no bucket) and mention they can ask for any other Google
+AI capability.
 
 If they decline: "No problem — say 'set up Google Cloud' or 'set up Vertex'
 whenever you want image, video, or voice generation."
