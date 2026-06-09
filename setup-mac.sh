@@ -330,8 +330,10 @@ agent_installed() { case "$ELNORA_AGENT" in "$1"|both) return 0 ;; *) return 1 ;
 # --- [1/9] AI coding agent(s) (installed FIRST - zero dependencies) ---
 # Both Claude Code and Codex ship self-contained native installers that need
 # no prerequisites (not even brew or node), so whichever the user picked is
-# the very first thing on the machine. Each writes its binary under
-# ~/.local/bin and auto-updates itself.
+# the very first thing on the machine, writing its binary under ~/.local/bin
+# and auto-updating itself. Codex's native installer host can be unreachable
+# from CI/datacenter IPs (HTTP 403); when that happens we transparently fall
+# back to the npm package after Node lands (see the fallback below step 3).
 if agent_installed claude; then
     if ! command -v claude &> /dev/null; then
         echo "[1/9] Installing Claude Code..."
@@ -352,13 +354,28 @@ if agent_installed claude; then
         echo "[1/9] Claude Code already installed: $(claude --version). Skipping."
     fi
 fi
+# Set when the native Codex installer can't run here, so the post-Node step
+# below retries via npm (mirrors setup-windows.ps1, which installs Codex from
+# npm after Node). chatgpt.com/codex/install.sh works for real users but is
+# blocked (HTTP 403) from some CI/datacenter IPs, so a hard failure here would
+# be wrong - we just defer to the reliable npm path.
+_codex_needs_npm=0
 if agent_installed codex; then
     if ! command -v codex &> /dev/null; then
         echo "[1/9] Installing Codex..."
-        echo "  Using OpenAI's native installer (no prerequisites required)."
-        if run_step "Codex" /bin/bash -c "set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh"; then
-            export PATH="$HOME/.local/bin:$PATH"
+        echo "  Trying OpenAI's native installer (no prerequisites required)."
+        # Don't route this through run_step: a non-zero exit here is recoverable
+        # (we fall back to npm after Node), so it must not land in FAILED_STEPS
+        # or print a scary remediation box. set -o pipefail propagates a failed
+        # curl through the pipe so we correctly detect the 403/network case.
+        /bin/bash -c "set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh" >/dev/null 2>&1 || true
+        export PATH="$HOME/.local/bin:$PATH"
+        hash -r 2>/dev/null || true
+        if command -v codex &> /dev/null; then
             echo "  Done. Version: $(codex --version 2>/dev/null || echo 'installed - restart terminal')"
+        else
+            echo "  Native installer unavailable here - will install Codex via npm after Node."
+            _codex_needs_npm=1
         fi
     else
         echo "[1/9] Codex already installed: $(codex --version). Skipping."
@@ -569,6 +586,23 @@ if ! $node_major_ok; then
     fi
 else
     echo "[3/9] Node.js already installed: $(node --version). Skipping."
+fi
+
+# Codex npm fallback: if the native installer at step 1 couldn't run (CI/
+# datacenter 403 on chatgpt.com, or no network yet), install it now that Node
+# and npm exist - the same path setup-windows.ps1 uses for Codex.
+if agent_installed codex && [ "${_codex_needs_npm:-0}" = "1" ] && ! command -v codex &> /dev/null; then
+    if command -v npm &> /dev/null; then
+        echo "[3/9] Installing Codex via npm (native installer was unreachable)..."
+        if run_step "Codex (npm)" npm install -g @openai/codex; then
+            hash -r 2>/dev/null || true
+            echo "  Done. Version: $(codex --version 2>/dev/null || echo 'installed - restart terminal')"
+        fi
+    else
+        echo "[3/9] Codex still not installed and npm is unavailable - install it"
+        echo "      manually after setup:  npm install -g @openai/codex"
+        FAILED_STEPS+=("Codex (no native installer, no npm)")
+    fi
 fi
 
 # --- [4/9] Git + user config ---
