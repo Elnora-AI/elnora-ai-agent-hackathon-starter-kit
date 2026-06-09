@@ -44,6 +44,7 @@ on:
       - "setup-windows.ps1"
       - "install.sh"
       - "install.ps1"
+      - "tests/registry/**"
       - ".github/workflows/install-smoke-test.yml"
       - ".github/scripts/lint-ascii.py"
   pull_request:
@@ -53,6 +54,7 @@ on:
       - "setup-windows.ps1"
       - "install.sh"
       - "install.ps1"
+      - "tests/registry/**"
       - ".github/workflows/install-smoke-test.yml"
       - ".github/scripts/lint-ascii.py"
 
@@ -76,6 +78,23 @@ jobs:
       - uses: actions/checkout@v6
       - name: Reject non-ASCII outside # comments
         run: python3 .github/scripts/lint-ascii.py
+
+  registry-unit:
+    # Fast, hermetic unit tests for the workspace registry in install.sh /
+    # install.ps1 (the dedup logic that stops re-runs from spawning duplicate
+    # folders). No network, no API key, no real install -- the tests extract
+    # the registry lib from the installers and exercise it directly, so they're
+    # safe to run on every PR. ubuntu-latest ships both bash and pwsh.
+    name: registry unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - name: Bash registry tests
+        run: bash tests/registry/registry_test.sh
+      - name: PowerShell registry tests
+        shell: pwsh
+        run: ./tests/registry/registry_test.ps1
 
   macos:
     name: macOS (setup-mac.sh)

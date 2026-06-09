@@ -58,6 +58,11 @@ _user_lower="$(printf '%s' "${USER:-me}" \
 [ -z "$_user_lower" ] && _user_lower="me"
 default_name="${_user_lower}-agents"
 
+# >>> ELNORA_REGISTRY_LIB_START >>>
+# Everything between these two markers is self-contained (no dependency on the
+# rest of this script) so tests/registry/registry_test.sh can extract and
+# source it directly, exercising the REAL code instead of a drifting copy. If
+# you add a registry helper, keep it inside the markers.
 # ---- Workspace registry ---------------------------------------------------
 # Single source of truth for "which folder is the real workspace." Without it,
 # a customer whose first run died in Phase 2 re-runs this script, doesn't
@@ -179,6 +184,7 @@ registry_resume_menu() {
         esac
     done
 }
+# <<< ELNORA_REGISTRY_LIB_END <<<
 
 echo "==========================================="
 echo "  Elnora AI Agent Hackathon Starter Kit - Bootstrap"

@@ -1,0 +1,145 @@
+name: agent-selection-test
+
+# Proves the dual-agent feature: the installer's agent choice (claude | codex |
+# both) installs the right binary/binaries and resolves the Phase 2 handoff to
+# the right agent. Secret-free by design — it sets ELNORA_SKIP_HANDOFF=1 so
+# setup prints "would hand off to <agent>" and exits 0 BEFORE any auth or real
+# agent launch. No ANTHROPIC_API_KEY / OPENAI_API_KEY needed.
+#
+# What the other agent E2Es prove (and this one deliberately does NOT):
+#   handoff-e2e.yml / bootstrap-e2e.yml — run the real agent (need API keys).
+#   install-smoke-test.yml             — Phase 1 install cleanliness (claude).
+# What THIS proves: the agent-selection branching in install.{sh,ps1} and
+#   setup-{mac.sh,windows.ps1} installs + routes to the chosen agent.
+#
+# A Codex *handoff* E2E (the agent actually following INSTALL_FOR_AGENTS.md
+# headless) is a follow-up: it needs an OPENAI_API_KEY repo secret and Codex's
+# transcript format wired into assertions. See README / the dual-agent PR notes.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - install.sh
+      - install.ps1
+      - setup-mac.sh
+      - setup-windows.ps1
+      - .github/workflows/agent-selection-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS agent=${{ matrix.agent }}
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [claude, codex, both]
+    runs-on: macos-14
+    timeout-minutes: 25
+    env:
+      ELNORA_AGENT: ${{ matrix.agent }}
+      # Skip the real handoff (no API key) and the heavy optional casks.
+      ELNORA_SKIP_HANDOFF: "1"
+      ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
+      ELNORA_WORKSPACE_NAME: agent-sel-${{ github.run_id }}-${{ github.run_attempt }}-mac-${{ matrix.agent }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pre-set git config (skip prompts)
+        run: |
+          git config --global user.name "Agent Selection Test"
+          git config --global user.email "agent-selection@elnora-ai-agent-hackathon-starter-kit.test"
+
+      - name: Run Phase 1 setup with the selected agent
+        run: bash setup-mac.sh 2>&1 | tee "$HOME/setup-output.log"
+
+      - name: Assert the right agent(s) installed and handoff resolved
+        run: |
+          set -euo pipefail
+          out="$HOME/setup-output.log"
+          fail=0
+          want_claude=0; want_codex=0
+          case "$ELNORA_AGENT" in
+            claude) want_claude=1 ;;
+            codex)  want_codex=1 ;;
+            both)   want_claude=1; want_codex=1 ;;
+          esac
+
+          if [ "$want_claude" = "1" ]; then
+            command -v claude >/dev/null 2>&1 && echo "OK: claude installed" \
+              || { echo "FAIL: claude not on PATH"; fail=1; }
+          fi
+          if [ "$want_codex" = "1" ]; then
+            command -v codex >/dev/null 2>&1 && echo "OK: codex installed" \
+              || { echo "FAIL: codex not on PATH"; fail=1; }
+          fi
+
+          # With both installed, handoff defaults to claude (ELNORA_HANDOFF_AGENT
+          # unset). With a single agent, handoff is that agent.
+          case "$ELNORA_AGENT" in
+            codex) expect="would hand off to Codex" ;;
+            *)     expect="would hand off to Claude Code" ;;
+          esac
+          if grep -qF "$expect" "$out"; then
+            echo "OK: handoff resolved -> $expect"
+          else
+            echo "FAIL: expected handoff line not found: $expect"
+            fail=1
+          fi
+
+          exit "$fail"
+
+  windows:
+    name: Windows agent=${{ matrix.agent }}
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: [claude, codex, both]
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      ELNORA_AGENT: ${{ matrix.agent }}
+      ELNORA_SKIP_HANDOFF: "1"
+      ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
+      ELNORA_WORKSPACE_NAME: agent-sel-${{ github.run_id }}-${{ github.run_attempt }}-win-${{ matrix.agent }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pre-set git config (skip prompts)
+        shell: pwsh
+        run: |
+          git config --global user.name "Agent Selection Test"
+          git config --global user.email "agent-selection@elnora-ai-agent-hackathon-starter-kit.test"
+
+      - name: Run Phase 1 setup with the selected agent
+        shell: pwsh
+        run: .\setup-windows.ps1 *>&1 | Tee-Object -FilePath "$env:USERPROFILE\setup-output.log"
+
+      - name: Assert the right agent(s) installed and handoff resolved
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $out  = Get-Content "$env:USERPROFILE\setup-output.log" -Raw
+          $fail = $false
+          $wantClaude = $env:ELNORA_AGENT -in @('claude','both')
+          $wantCodex  = $env:ELNORA_AGENT -in @('codex','both')
+
+          # Refresh PATH so binaries installed this run resolve.
+          $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
+
+          if ($wantClaude) {
+            if (Get-Command claude -ErrorAction SilentlyContinue) { Write-Host "OK: claude installed" }
+            else { Write-Host "FAIL: claude not on PATH"; $fail = $true }
+          }
+          if ($wantCodex) {
+            if (Get-Command codex -ErrorAction SilentlyContinue) { Write-Host "OK: codex installed" }
+            else { Write-Host "FAIL: codex not on PATH"; $fail = $true }
+          }
+
+          $expect = if ($env:ELNORA_AGENT -eq 'codex') { "would hand off to Codex" } else { "would hand off to Claude Code" }
+          if ($out -like "*$expect*") { Write-Host "OK: handoff resolved -> $expect" }
+          else { Write-Host "FAIL: expected handoff line not found: $expect"; $fail = $true }
+
+          if ($fail) { exit 1 }

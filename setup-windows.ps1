@@ -507,10 +507,26 @@ if (-not $hasWinget) {
     }
 }
 
+# --- Coding agent selection (set by install.ps1; default to claude) ---
+# $env:ELNORA_AGENT is claude | codex | both; $env:ELNORA_HANDOFF_AGENT
+# (claude | codex) finishes Phase 2. A direct setup-windows.ps1 run with no
+# install.ps1 defaults to claude so existing muscle memory still works.
+$Agent = ("$($env:ELNORA_AGENT)").ToLowerInvariant() -replace '\s',''
+if ($Agent -notin @('claude','codex','both')) { $Agent = 'claude' }
+if ($Agent -eq 'both') {
+    $HandoffAgent = ("$($env:ELNORA_HANDOFF_AGENT)").ToLowerInvariant() -replace '\s',''
+    if ($HandoffAgent -notin @('claude','codex')) { $HandoffAgent = 'claude' }
+} else {
+    $HandoffAgent = $Agent
+}
+# True when $which (claude|codex) is among the installed agent(s).
+function Test-AgentInstalled([string]$which) { return ($Agent -eq $which -or $Agent -eq 'both') }
+
 # --- [1/8] Claude Code CLI (installed FIRST - zero dependencies) ---
 # Using Anthropic's native installer so Claude Code is the very first thing on
 # the machine. Works even when winget is missing (unlike the rest of the tools
 # below). Writes a self-contained binary to %USERPROFILE%\.local\bin\claude.exe.
+if (Test-AgentInstalled 'claude') {
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host "[1/8] Installing Claude Code..." -ForegroundColor Green
     Write-Host "  Using Anthropic's native installer (no prerequisites required)." -ForegroundColor Gray
@@ -563,6 +579,7 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
 } else {
     Write-Host "[1/8] Claude Code already installed: $(claude --version). Skipping." -ForegroundColor Gray
 }
+}  # end if Test-AgentInstalled 'claude'
 
 # --- [2/8] Node.js (pinned to >=22 for Mac/Windows parity) ---
 # Mirror setup-mac.sh's major-version probe (lines 426-432). Bare
@@ -704,6 +721,31 @@ if (-not $nodeMajorOk) {
     }
 } else {
     Write-Host "[2/8] Node.js already installed: $nodeCurrentVersion. Skipping." -ForegroundColor Gray
+}
+
+# --- [2b/8] Codex CLI (after Node - the npm package needs it) ---
+# Codex ships a native installer for macOS/Linux only; on Windows the supported
+# path is the npm package, so this runs after Node above rather than first.
+if (Test-AgentInstalled 'codex') {
+    # Pick up a just-installed Node so `npm` resolves without a new terminal.
+    Update-SessionPath
+    if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+            Write-Host "[2b/8] Installing Codex (npm -g @openai/codex)..." -ForegroundColor Green
+            Invoke-Step "Codex" { npm install -g @openai/codex }
+            Update-SessionPath
+            if (Get-Command codex -ErrorAction SilentlyContinue) {
+                Write-Host "  Done. Version: $(codex --version 2>$null)" -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "[2b/8] Codex needs Node/npm, which isn't on PATH yet." -ForegroundColor Red
+            Write-Host "      Open a new terminal (so the Node PATH refresh applies) and re-run," -ForegroundColor Yellow
+            Write-Host "      or install manually:  npm install -g @openai/codex" -ForegroundColor Yellow
+            [void]$FailedSteps.Add("Codex (npm unavailable)")
+        }
+    } else {
+        Write-Host "[2b/8] Codex already installed: $(codex --version). Skipping." -ForegroundColor Gray
+    }
 }
 
 # --- [3/8] Git + user config ---
@@ -1182,6 +1224,53 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
     Write-Host "  (Skipped -- non-interactive run.)"
     Write-Host ""
 } else {
+    # ---- Handoff-agent auth ----
+    # Only the agent that finishes Phase 2 ($HandoffAgent) must be signed in
+    # here. If both were installed, the other signs in on its own first launch.
+    if ($HandoffAgent -eq 'codex') {
+    Write-Host "[1/2] Codex"
+    $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+    if ($env:OPENAI_API_KEY -or $env:CODEX_API_KEY) {
+        Write-Host "      OPENAI_API_KEY/CODEX_API_KEY set -- skipping browser login."
+    } elseif (Test-Path -LiteralPath (Join-Path $codexHome 'auth.json')) {
+        Write-Host "      [OK] Already signed in."
+        Set-Checkpoint "auth-codex"
+    } else {
+        Write-Host "      Not signed in. A browser will open so you can sign in to ChatGPT."
+        Write-Host "      [Y]es / [s]kip+continue without Codex / [q]uit script"
+        $answer = Read-Host "      >"
+        if ([string]::IsNullOrWhiteSpace($answer)) { $answer = "Y" }
+        switch -Regex ($answer) {
+            "^[Yy]" {
+                codex login
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "      [FAIL] Codex sign-in didn't complete."
+                    Write-Host ""
+                    Write-Host "         Nothing is lost. When you're ready, run again:"
+                    Write-Host ""
+                    Write-Host "             .\setup-windows.ps1"
+                    Write-Host ""
+                    Write-Host "         To try the login by hand first:  codex login"
+                    exit 1
+                }
+                Write-Host "      [OK] Signed in."
+                Set-Checkpoint "auth-codex"
+            }
+            "^[Ss]" {
+                Write-Host "      [SKIP] Phase 2 needs a signed-in agent. Re-run when ready:  .\setup-windows.ps1"
+                exit 0
+            }
+            "^[Qq]" {
+                Write-Host "      Quit. Re-run anytime:  .\setup-windows.ps1"
+                exit 0
+            }
+            default {
+                Write-Host "      Unrecognized response, treating as skip."
+                exit 0
+            }
+        }
+    }
+    } else {
     # ---- Claude auth ----
     Write-Host "[1/2] Claude Code"
     if ($env:ANTHROPIC_API_KEY) {
@@ -1287,6 +1376,17 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
             }
         }
     }
+    }  # end handoff-agent auth (codex / claude branch)
+
+    # When both agents were installed, the non-handoff one is optional here --
+    # it prompts for sign-in on its own first launch. Just remind the user.
+    if ($Agent -eq 'both') {
+        if ($HandoffAgent -eq 'claude') {
+            Write-Host "      Note: Codex is installed too -- sign in anytime with 'codex login'."
+        } else {
+            Write-Host "      Note: Claude Code is installed too -- sign in anytime with 'claude auth login --claudeai'."
+        }
+    }
     Write-Host ""
 
     # ---- GitHub auth ----
@@ -1364,14 +1464,25 @@ try { Stop-Transcript | Out-Null } catch { }
 # divergence here is the bug headless mode is supposed to catch.
 $HandoffPrompt = "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log."
 
-$claudeAvailable = Get-Command claude -ErrorAction SilentlyContinue
-if ($claudeAvailable) {
+# Resolve the handoff agent's binary, display name, and first-run auth note.
+if ($HandoffAgent -eq 'codex') {
+    $agentBin  = 'codex'
+    $agentName = 'Codex'
+    $authNote  = "On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
+} else {
+    $agentBin  = 'claude'
+    $agentName = 'Claude Code'
+    $authNote  = "On first run, your browser will open to log into your Claude Pro/Max account."
+}
+
+$agentAvailable = Get-Command $agentBin -ErrorAction SilentlyContinue
+if ($agentAvailable) {
     if ($env:ELNORA_SKIP_HANDOFF -eq "1") {
         # CI/test escape hatch: print what would happen and exit cleanly. Used
         # by .github/workflows/install-smoke-test.yml so the smoke test doesn't
-        # hang on Claude trying to open a browser for first-run auth.
+        # hang on the agent trying to open a browser for first-run auth.
         # Echo the prompt itself so the smoke test has something to grep on.
-        Write-Host "ELNORA_SKIP_HANDOFF=1 set - would invoke claude with the Phase 2 prompt. Skipping for non-interactive run." -ForegroundColor Gray
+        Write-Host "ELNORA_SKIP_HANDOFF=1 set - would hand off to $agentName with the Phase 2 prompt. Skipping for non-interactive run." -ForegroundColor Gray
         Write-Host "  Phase 2 prompt: $HandoffPrompt" -ForegroundColor Gray
         exit 0
     }
@@ -1539,31 +1650,37 @@ if ($claudeAvailable) {
             exit 2
         }
         $transcript = if ($env:ELNORA_HANDOFF_TRANSCRIPT) { $env:ELNORA_HANDOFF_TRANSCRIPT } else { Join-Path $env:USERPROFILE "handoff-transcript.jsonl" }
-        Write-Host "ELNORA_HANDOFF_MODE=headless - running claude -p (transcript: $transcript)" -ForegroundColor Cyan
-        # --verbose is REQUIRED with -p --output-format=stream-json (Claude Code
-        # rejects the combo otherwise). --max-turns 80 caps a runaway loop;
-        # Phase 2 averages ~40-50 turns when GitHub bootstrap (gh auth + repo
-        # create + push + verify) runs in full, so 80 leaves ~30-turn
-        # headroom for transient retries (network, tool errors).
-        #
-        # The trailing `| Out-Null` is load-bearing (mirrors the Mac script's
-        # `> /dev/null` after `tee`): Start-Transcript captures everything
-        # written to the host, so without Out-Null the JSONL stream would land
-        # in BOTH the transcript file AND ~/claude-starter-install.log -
-        # bloating the install log and embedding the agent's own conversation
-        # (including the literal text "FAILED:" inside INSTALL_FOR_AGENTS.md)
-        # where the next agent's grep FAILED: will hit it as false positives.
-        # Send JSONL to transcript only; the workflow has a separate "Show
-        # handoff transcript" step for live debugging.
-        & claude -p $HandoffPrompt `
-            --permission-mode bypassPermissions `
-            --output-format stream-json `
-            --verbose `
-            --max-turns 80 `
-          | Tee-Object -FilePath $transcript | Out-Null
-        $rc = $LASTEXITCODE
+        # The trailing `| Out-Null` on each branch is load-bearing (mirrors the
+        # Mac script's `> /dev/null` after `tee`): without it the agent's own
+        # conversation stream (including the literal text "FAILED:" inside
+        # INSTALL_FOR_AGENTS.md) lands in ~/claude-starter-install.log and
+        # poisons the next agent's grep FAILED:. Send it to the transcript only.
+        if ($agentBin -eq 'codex') {
+            Write-Host "ELNORA_HANDOFF_MODE=headless - running codex exec (transcript: $transcript)" -ForegroundColor Cyan
+            # `codex exec` is the non-interactive analog of `claude -p`;
+            # --dangerously-bypass-approvals-and-sandbox is Codex's equivalent of
+            # --permission-mode bypassPermissions (nobody is there to approve
+            # tool calls). Gated by the same CI / local-opt-in checks above.
+            & codex exec $HandoffPrompt --dangerously-bypass-approvals-and-sandbox 2>&1 `
+              | Tee-Object -FilePath $transcript | Out-Null
+            $rc = $LASTEXITCODE
+        } else {
+            Write-Host "ELNORA_HANDOFF_MODE=headless - running claude -p (transcript: $transcript)" -ForegroundColor Cyan
+            # --verbose is REQUIRED with -p --output-format=stream-json (Claude Code
+            # rejects the combo otherwise). --max-turns 80 caps a runaway loop;
+            # Phase 2 averages ~40-50 turns when GitHub bootstrap (gh auth + repo
+            # create + push + verify) runs in full, so 80 leaves ~30-turn
+            # headroom for transient retries (network, tool errors).
+            & claude -p $HandoffPrompt `
+                --permission-mode bypassPermissions `
+                --output-format stream-json `
+                --verbose `
+                --max-turns 80 `
+              | Tee-Object -FilePath $transcript | Out-Null
+            $rc = $LASTEXITCODE
+        }
         Write-Host ""
-        Write-Host "claude -p exited with code $rc (transcript saved to $transcript)" -ForegroundColor Cyan
+        Write-Host "$agentName handoff exited with code $rc (transcript saved to $transcript)" -ForegroundColor Cyan
         exit $rc
     }
 
@@ -1589,15 +1706,18 @@ if ($claudeAvailable) {
         # named workspace file and set restoreWindows so the NEXT relaunch
         # reopens this project instead of an empty window.
         try { Initialize-VSCodeWorkspace } catch { }
-        Write-Host "Already inside VS Code - starting Claude in this terminal." -ForegroundColor White
-        Write-Host "On first run, your browser will open to log into your Claude Pro/Max account." -ForegroundColor White
+        Write-Host "Already inside VS Code - starting $agentName in this terminal." -ForegroundColor White
+        Write-Host $authNote -ForegroundColor White
         Write-Host ""
-        & claude $HandoffPrompt
+        & $agentBin $HandoffPrompt
         exit $LASTEXITCODE
     }
 
+    # The VS Code sentinel handoff drives `claude` specifically (run-handoff.ps1
+    # invokes claude), so it only applies when Claude is the handoff agent. Codex
+    # falls through to the terminal call below.
     $codeAvailable = Get-Command code -ErrorAction SilentlyContinue
-    if ($codeAvailable -and $env:ELNORA_SKIP_VSCODE_HANDOFF -ne "1") {
+    if ($agentBin -eq 'claude' -and $codeAvailable -and $env:ELNORA_SKIP_VSCODE_HANDOFF -ne "1") {
         $vscodeDir = Join-Path $scriptDir ".vscode"
         $sentinel  = Join-Path $vscodeDir ".handoff-pending"
         $helper    = Join-Path $vscodeDir "run-handoff.ps1"
@@ -1654,25 +1774,25 @@ if ($claudeAvailable) {
         }
     }
 
-    Write-Host "Starting Claude - it will read INSTALL_FOR_AGENTS.md and finish setup." -ForegroundColor White
-    Write-Host "On first run, your browser will open to log into your Claude Pro/Max account." -ForegroundColor White
+    Write-Host "Starting $agentName - it will read INSTALL_FOR_AGENTS.md and finish setup." -ForegroundColor White
+    Write-Host $authNote -ForegroundColor White
     Write-Host ""
-    # PowerShell has no `exec` - call claude as a child process and let it own
+    # PowerShell has no `exec` - call the agent as a child process and let it own
     # the terminal until it exits. Then the script exits cleanly.
-    & claude $HandoffPrompt
+    & $agentBin $HandoffPrompt
     exit 0
 }
 
-# Fallback: claude not on PATH (install of Claude Code itself failed) - show
-# the manual continuation path so the user can recover after fixing the issue.
-Write-Host "  ! 'claude' command not found - Claude Code install may have failed." -ForegroundColor Yellow
+# Fallback: handoff agent not on PATH (its install failed) - show the manual
+# continuation path so the user can recover after fixing the issue.
+Write-Host "  ! '$agentBin' command not found - $agentName install may have failed." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  See the remediation hints above. Once you've fixed it, re-run:" -ForegroundColor White
 Write-Host "      .\setup-windows.ps1"
 Write-Host ""
 Write-Host "  Or continue manually:" -ForegroundColor White
 Write-Host "      cd $(Get-Location)"
-Write-Host "      claude"
+Write-Host "      $agentBin"
 Write-Host "      Then say: 'Read INSTALL_FOR_AGENTS.md and finish setup.'"
 Write-Host ""
 

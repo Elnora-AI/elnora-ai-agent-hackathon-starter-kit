@@ -1,6 +1,9 @@
 # Getting Started — First Steps After Install
 
-You've got Claude Code installed and running. Here's how to make the most of it.
+You've got your coding agent — **Claude Code or Codex** (whichever you picked at
+install, or both) — installed and running. Here's how to make the most of it.
+The commands and shortcuts below are Claude Code's; if you chose Codex, start it
+with `codex` and see its own `/help` for the equivalents.
 
 ---
 
@@ -78,6 +81,7 @@ The more context you give Claude in `CLAUDE.md`, the better it performs. Add:
 | Command | What it does |
 |---------|-------------|
 | `claude` | Start a new Claude Code conversation |
+| `codex` | Start a new Codex conversation (if you installed Codex) |
 | `/help` | Show all available commands |
 | `/plugins` | Browse and install plugins |
 | `/commit` | Commit your changes (if commit-commands plugin is installed) |
@@ -104,8 +108,8 @@ is idempotent and upgrades installed tools in place.
 ## Set up your GitHub repo manually (fallback)
 
 Phase 2 normally creates your private GitHub repo for you. If the automated
-flow didn't run (no Claude Pro/Max, install failure, or you ran setup
-without launching Claude after), here's the equivalent by hand. Run these
+flow didn't run (no agent plan/key, install failure, or you ran setup
+without launching the agent after), here's the equivalent by hand. Run these
 in the starter-kit directory:
 
 ```bash
@@ -138,8 +142,9 @@ fails" or "GitHub repo creation fails."
 ## Getting help
 
 - **Claude Code documentation**: https://docs.anthropic.com/en/docs/claude-code
-- **Report issues**: https://github.com/anthropics/claude-code/issues
+- **Claude Code issues**: https://github.com/anthropics/claude-code/issues
 - **Anthropic support**: https://support.anthropic.com
+- **Codex documentation & issues**: https://github.com/openai/codex
 - **Community**: https://github.com/anthropics/claude-code/discussions
 
 ---
