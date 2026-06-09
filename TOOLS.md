@@ -32,7 +32,6 @@ From `.claude/settings.json` `enabledPlugins`. Everything else is opt-in via
 
 | Plugin | Marketplace | Provides |
 |--------|-------------|----------|
-| **elnora** | elnora-plugins | 8 bioprotocol skills: `elnora-platform`, `-orgs`, `-projects`, `-tasks`, `-files`, `-folders`, `-search`, `-admin`. Wired to the Elnora MCP server. |
 | **commit-commands** | claude-code-plugins | `/commit`, `/commit-push-pr`, `/clean_gone` |
 | **context7** | claude-plugins-official | Up-to-date library/framework docs via MCP (same tools as the standalone `context7` MCP server) |
 | **claude-md-management** | claude-plugins-official | `/revise-claude-md` — audit + improve `CLAUDE.md` files |
@@ -49,9 +48,6 @@ Project-scoped, loaded for every session in this repo.
 | **grep** | http | `https://mcp.grep.app` | `searchGitHub` — semantic code search across **public** GitHub repos. **Privacy:** queries are sent to a third-party service; never search proprietary code or secrets. |
 | **chrome-devtools** | stdio (`npx chrome-devtools-mcp@latest --autoConnect`) | local | Take over your real Chrome via CDP — list/create tabs, navigate, screenshot, run JS, read network/console, Lighthouse. Requires Chrome 144+ running. Setup + recipes: [`docs/chrome-devtools-mcp-setup.md`](docs/chrome-devtools-mcp-setup.md). Windows: `setup-windows.ps1` writes a user-level override wrapping `npx` in `cmd /c`. |
 
-Elnora's MCP server is **not** in `.mcp.json` — it's exposed via the `elnora`
-plugin instead (same `mcp__elnora__*` namespace, OAuth on first use).
-
 Other plugins (e.g. `playwright`) ship their own MCP servers and only load
 when you enable that plugin via `/plugins`.
 
@@ -64,7 +60,6 @@ From `extraKnownMarketplaces` in `.claude/settings.json`. Browse with
 
 | Marketplace | Source | autoUpdate | Default-enabled plugins |
 |-------------|--------|------------|-------------------------|
-| **elnora-plugins** | `Elnora-AI/elnora-plugins` | yes | `elnora` |
 | **claude-code-plugins** | `anthropics/claude-code` | yes | `commit-commands` |
 | **claude-plugins-official** | `anthropics/claude-plugins-official` | yes | `context7`, `claude-md-management` |
 | **anthropic-agent-skills** | `anthropics/skills` | yes | none (recommended: `document-skills`) |
@@ -82,7 +77,7 @@ boundary**. It pattern-matches surface form only.
 
 **Allow** (auto-approved, no prompt):
 - Built-ins: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, `Agent`, `NotebookEdit`, `Monitor`, `Bash`
-- MCP: `mcp__context7__*`, `mcp__grep__*`, `mcp__elnora__*`, `mcp__chrome-devtools__*`
+- MCP: `mcp__context7__*`, `mcp__grep__*`, `mcp__chrome-devtools__*`
 
 **Deny** (blocked outright):
 - Force pushes: `git push --force[ *]`, `git push -f[ *]`
@@ -118,54 +113,15 @@ All come from enabled plugins — no project-local commands.
 | `/plugins` | built-in | Browse / install / remove plugins |
 | `/help`, `/clear`, `/config` | built-in | Standard CLI |
 
-The `elnora` plugin contributes **skills** (auto-triggered by keywords), not
-slash commands. See next section.
-
 ---
 
 ## Skills (auto-triggered)
 
-From the `elnora` plugin. Trigger phrases listed in each `SKILL.md`; the
-harness invokes them when a user message matches.
+Trigger phrases are listed in each plugin's `SKILL.md`; the harness invokes
+them when a user message matches.
 
-| Skill | Trigger when user asks about… |
-|-------|-------------------------------|
-| `elnora:elnora-platform` | General Elnora platform / CLI / API overview |
-| `elnora:elnora-tasks` | Create/list/update tasks, generate protocols, message Elnora |
-| `elnora:elnora-projects` | Project CRUD, members, archive/leave |
-| `elnora:elnora-files` | Files, versions, protocol output, uploads, batches |
-| `elnora:elnora-folders` | Folder CRUD inside projects |
-| `elnora:elnora-search` | Full-text search across tasks, files, content |
-| `elnora:elnora-orgs` | Orgs, members, billing, invitations |
-| `elnora:elnora-admin` | Auth, API keys, health, audit, account |
-
-`claude-md-management` also exposes a `claude-md-improver` skill alongside its
+`claude-md-management` exposes a `claude-md-improver` skill alongside its
 slash command.
-
----
-
-## Elnora CLI
-
-Installed globally by `setup-mac.sh` / `setup-windows.ps1` (step 2/N).
-
-| Platform | Binary path | On `PATH`? |
-|----------|-------------|------------|
-| macOS | `~/.local/bin/elnora` | yes (setup script appends) |
-| Windows | `%USERPROFILE%\.elnora\bin\elnora.exe` | yes (setup script appends) |
-
-Headline commands:
-
-| Command | Purpose |
-|---------|---------|
-| `elnora auth login --api-key <key>` | Save API key to `~/.elnora/profiles.toml` (mode 600) |
-| `elnora whoami` | Current identity |
-| `elnora doctor` | Verify config, auth, API connectivity |
-| `elnora setup claude` | Wire Elnora into current Claude Code config |
-| `elnora tasks` / `projects` / `files` | CRUD + search |
-| `elnora mcp serve --stdio` | Run MCP server locally (offline fallback; hosted endpoint is what's pre-wired) |
-
-Docs: [cli.elnora.ai](https://cli.elnora.ai). CI pins `ELNORA_CLI_VERSION`;
-setup scripts always pull latest.
 
 ---
 
@@ -193,7 +149,7 @@ Not invokable from chat, but agents may need to know they exist.
 | Path | Purpose |
 |------|---------|
 | `install.sh` / `install.ps1` | Phase 1 — clone + extract starter kit |
-| `setup-mac.sh` / `setup-windows.ps1` | Phase 2 — install Claude Code, Elnora CLI, wire MCP |
+| `setup-mac.sh` / `setup-windows.ps1` | Phase 2 — install Claude Code, wire MCP |
 | `.vscode/run-handoff.{sh,ps1}` | One-shot Phase 1→2 handoff prompt opener |
 | `.github/workflows/bootstrap-e2e.yml` | E2E bootstrap test |
 | `.github/workflows/handoff-e2e.yml` | Handoff flow E2E test |

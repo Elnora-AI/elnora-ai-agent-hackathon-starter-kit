@@ -96,27 +96,7 @@ A few standouts:
 
 See the full list of 40+ plugins on [github.com/anthropics/knowledge-work-plugins](https://github.com/anthropics/knowledge-work-plugins).
 
-### 5. Elnora AI (`elnora-plugins`)
-
-**Source**: github.com/Elnora-AI/elnora-plugins
-**Trust level**: High — maintained by Elnora AI (the platform that powers this starter kit)
-**Status**: Registered with `autoUpdate: true`. The `elnora` plugin is **enabled by default** in `.claude/settings.json`, so the 8 bioprotocol skills load automatically on first launch and stay on the latest release as the marketplace publishes updates.
-
-| Plugin | What it gives you | Best for |
-|--------|-------------------|----------|
-| **elnora** ⭐ | 8 bioprotocol skills (`elnora-platform`, `-orgs`, `-projects`, `-tasks`, `-files`, `-folders`, `-search`, `-admin`) wired to the Elnora MCP server | Generating, versioning, and managing wet-lab protocols from Claude Code |
-
-⭐ = enabled by default in this starter kit.
-
-Three independent pieces — all stay current automatically:
-
-- **Elnora CLI** — installed by `setup-mac.sh` / `setup-windows.ps1` from `cli.elnora.ai`. Always pulls the **latest** release; re-running setup refreshes the binary in place. Set `ELNORA_CLI_VERSION` (e.g. `v1.5.0`) only if you need to pin behind a corporate NAT that hits GitHub rate limits.
-- **Elnora MCP server** — pre-wired in `.mcp.json` as a remote HTTP endpoint (`https://mcp.elnora.ai/mcp`). Nothing to install locally; server-side updates apply immediately. OAuth on first call.
-- **Elnora skills/agents/commands** — bundled inside the `elnora` plugin. Because the marketplace has `autoUpdate: true`, Claude Code refreshes the plugin from `Elnora-AI/elnora-plugins` automatically.
-
-If new plugins are added to the `elnora-plugins` marketplace later, enable them by adding `"<plugin-name>@elnora-plugins": true` to the `enabledPlugins` block of `.claude/settings.json`.
-
-### 6. Community Workflows (`claude-code-workflows`)
+### 5. Community Workflows (`claude-code-workflows`)
 
 **Source**: github.com/wshobson/agents
 **Trust level**: Medium — community-maintained, not Anthropic-verified
@@ -145,7 +125,7 @@ You can add them via `/plugins` > "Add marketplace" when you're ready.
 **What's in it**: Advanced workflow skills — brainstorming, TDD, systematic debugging, parallel agent dispatch. Best for power users.
 
 > **Note**: `superpowers` is **not** enabled by default in `.claude/settings.json`
-> — only `elnora`, `commit-commands`, `context7`, and `claude-md-management` are.
+> — only `commit-commands`, `context7`, and `claude-md-management` are.
 > Two ways to add it: install from the Anthropic-maintained
 > `claude-plugins-official` marketplace (already registered in
 > `extraKnownMarketplaces`, just enable via `/plugins`), or add the
@@ -155,9 +135,8 @@ You can add them via `/plugins` > "Add marketplace" when you're ready.
 
 ## What's enabled out of the box
 
-The kit ships with four plugins already turned on in `.claude/settings.json`:
+The kit ships with three plugins already turned on in `.claude/settings.json`:
 
-- **elnora** (from `elnora-plugins`) — bioprotocol generation, task/file/project management
 - **commit-commands** (from `claude-code-plugins`) — `/commit`, `/commit-push-pr`
 - **context7** (from `claude-plugins-official`) — current library docs via MCP
 - **claude-md-management** (from `claude-plugins-official`) — keeps `CLAUDE.md` tidy

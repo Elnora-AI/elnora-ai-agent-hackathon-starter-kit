@@ -14,19 +14,12 @@ Phase 2 work.
 
 After the headless handoff completes, `assert.sh` / `assert.ps1` verifies:
 
-1. `~/.elnora/profiles.toml` (or `%USERPROFILE%\.elnora\profiles.toml`)
-   contains `api_key = "elnora_live_…"`, AND `elnora auth status` returns
-   success — i.e. Claude actually authenticated the CLI, not just dropped
-   a useless `.env` file the CLI doesn't read.
-2. `.git/` exists with at least one commit on `main`, and `git remote` is
+1. `.git/` exists with at least one commit on `main`, and `git remote` is
    empty (headless mode skips the GitHub bootstrap on purpose — no
    credentials, no browser).
-3. `.claude/knowledge-base.local.md` was created and the placeholder is gone.
-4. The `### First-run setup` block in `CLAUDE.md` was self-deleted.
-5. The transcript contains the `HANDOFF_COMPLETE` marker.
-6. The transcript shows Claude ran an Elnora CLI auth/verification command
-   (`whoami`, `doctor`, `auth login`, or `auth status`) — not just
-   `elnora --version`.
+2. `.claude/knowledge-base.local.md` was created and the placeholder is gone.
+3. The `### First-run setup` block in `CLAUDE.md` was self-deleted.
+4. The transcript contains the `HANDOFF_COMPLETE` marker.
 
 ## How to run it (manual only)
 
@@ -34,14 +27,13 @@ The test is opt-in — `workflow_dispatch` only, no schedule, no on-push trigger
 
 ### 1. Set up secrets (one time)
 
-You need two API keys. Paste them into GitHub repo secrets:
+You need an API key. Paste it into GitHub repo secrets:
 
 > **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**
 
 | Secret name | Where to get it | Notes |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys | Set a low monthly budget cap on the key in the Anthropic console so a runaway test can't spike the bill (measured at ~$0.45-0.55 per OS on current Sonnet pricing — but cap the key anyway). |
-| `ELNORA_API_KEY_TEST` | https://platform.elnora.ai/settings → API Keys | Use a **dedicated test account**, not your personal one. Every run hits `elnora whoami` and `elnora doctor`. |
 
 **For local testing** (running the headless mode on your own Mac), paste
 the same values into `.env` at the repo root — that file is gitignored.
@@ -76,7 +68,6 @@ faster loop. Paste your keys into `.env`, then:
 ELNORA_HANDOFF_MODE=headless \
 ELNORA_HANDOFF_TRANSCRIPT="$PWD/handoff-transcript.jsonl" \
 ANTHROPIC_API_KEY="$(grep ^ANTHROPIC_API_KEY= .env | cut -d= -f2-)" \
-ELNORA_API_KEY="$(grep ^ELNORA_API_KEY= .env | cut -d= -f2-)" \
 bash setup-mac.sh
 
 tests/handoff/assert.sh "$PWD" "$PWD/handoff-transcript.jsonl"
@@ -86,7 +77,7 @@ tests/handoff/assert.sh "$PWD" "$PWD/handoff-transcript.jsonl"
 # Windows:
 $env:ELNORA_HANDOFF_MODE = "headless"
 $env:ELNORA_HANDOFF_TRANSCRIPT = "$PWD\handoff-transcript.jsonl"
-# Source ANTHROPIC_API_KEY and ELNORA_API_KEY from .env or paste them
+# Source ANTHROPIC_API_KEY from .env or paste it
 .\setup-windows.ps1
 .\tests\handoff\assert.ps1 -RepoDir $PWD -Transcript "$PWD\handoff-transcript.jsonl"
 ```

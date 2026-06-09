@@ -20,7 +20,6 @@
       "Bash",
       "mcp__context7__*",
       "mcp__grep__*",
-      "mcp__elnora__*",
       "mcp__chrome-devtools__*"
     ],
     "deny": [
@@ -47,7 +46,6 @@
   },
   "hooks": {},
   "enabledPlugins": {
-    "elnora@elnora-plugins": true,
     "commit-commands@claude-code-plugins": true,
     "context7@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true
@@ -85,13 +83,6 @@
       "source": {
         "source": "git",
         "url": "https://github.com/anthropics/knowledge-work-plugins.git"
-      },
-      "autoUpdate": true
-    },
-    "elnora-plugins": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/Elnora-AI/elnora-plugins.git"
       },
       "autoUpdate": true
     }

@@ -21,10 +21,6 @@ name: install-smoke-test
 #     "winget missing on Server" case. Without this, setup-windows.ps1's
 #     winget-dependent steps (Node/Git/Python/VS Code/gh/Obsidian — i.e. most
 #     of them) would all fail in CI, masking real bugs.
-#   - Shared CI runner IP pools routinely exhaust the GitHub API's 60/hour
-#     unauthenticated rate limit. setup-mac.sh and setup-windows.ps1 work
-#     around this by pinning the Elnora CLI version, which bypasses the
-#     installer's API-based version resolution.
 #
 # Trigger: per-job split so PR review stays fast.
 #   - lint-ascii: auto on PR / push to main when a setup or install script
@@ -99,25 +95,6 @@ jobs:
       - name: Run setup-mac.sh with handoff skipped
         env:
           ELNORA_SKIP_HANDOFF: "1"
-          # PIN ELNORA_CLI_VERSION HERE ONLY (CI workflow), never in
-          # setup-mac.sh / setup-windows.ps1 themselves. Real users must run
-          # the unpinned "latest" path — that's the user-experience surface we
-          # are committing to. CI runners share IP pools that exhaust GitHub's
-          # 60/hr unauthenticated rate limit on api.github.com/.../latest, so
-          # the unpinned path flakes here for reasons that have nothing to do
-          # with our scripts. The pin makes CI a deterministic gate on script
-          # logic while leaving the real-user path unpinned.
-          #
-          # This file has churned between pinned/unpinned multiple times:
-          #   #20 add pin -> #21 unpin -> #24 re-pin -> #25 re-unpin -> now re-pin.
-          # Going-forward rule: PIN HERE, NEVER IN setup scripts. If a future
-          # maintainer wants to surface real-world rate-limit risk in CI, do
-          # it in a separate workflow so this gate stays meaningful. The
-          # proper fix is upstream GITHUB_TOKEN auth in the cli.elnora.ai
-          # installer.
-          #
-          # Bump this when cutting a new Elnora CLI release.
-          ELNORA_CLI_VERSION: v1.5.0
         run: |
           chmod +x setup-mac.sh
           bash setup-mac.sh
@@ -188,10 +165,6 @@ jobs:
         shell: pwsh
         env:
           ELNORA_SKIP_HANDOFF: "1"
-          # PIN HERE ONLY — see the matching long-form comment in the macOS
-          # job above for the full rationale and "do not unpin again" rule.
-          # Bump this when cutting a new Elnora CLI release.
-          ELNORA_CLI_VERSION: v1.5.0
         run: |
           Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
           .\setup-windows.ps1

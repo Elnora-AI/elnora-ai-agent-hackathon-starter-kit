@@ -4,16 +4,13 @@ name: handoff-e2e
 # script, lets it `claude -p` into INSTALL_FOR_AGENTS.md (headless mode),
 # and asserts on disk that Claude actually completed Phase 2.
 #
-# Manual-only (workflow_dispatch). Uses real ANTHROPIC_API_KEY and a real
-# ELNORA_API_KEY against the live Elnora API — costs LLM tokens per run.
+# Manual-only (workflow_dispatch). Uses a real ANTHROPIC_API_KEY — costs
+# LLM tokens per run.
 #
 # Required GitHub repository secrets:
 #   ANTHROPIC_API_KEY   - sk-ant-* key. Set a low monthly budget cap on it
 #                         in the Anthropic console so a runaway test can't
 #                         spike the bill.
-#   ELNORA_API_KEY_TEST - elnora_live_* key. Recommend a dedicated test
-#                         account, not your personal one — every run will
-#                         hit `elnora whoami` and `elnora doctor`.
 #   PAT_TOKEN_TEST      - GitHub PAT used to exercise the gh auth + repo
 #                         create + push path in headless mode. Each run
 #                         creates a private repo named
@@ -28,7 +25,7 @@ name: handoff-e2e
 #                         leaked token here can read/write/delete every
 #                         repo on the owning account.
 #
-# Set all three at:
+# Set both at:
 #   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
 #
 # Security note on the workflow_dispatch `os` input below: it's a `choice`
@@ -58,7 +55,6 @@ jobs:
     timeout-minutes: 25
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ELNORA_API_KEY: ${{ secrets.ELNORA_API_KEY_TEST }}
       ELNORA_HANDOFF_MODE: headless
       # PAT used by Claude in step 6 of INSTALL_FOR_AGENTS.md (headless
       # branch). The agent pipes this into `gh auth login --with-token`,
@@ -74,12 +70,6 @@ jobs:
       # / `-windows` suffix prevents the two jobs racing to create the
       # same repo on the same test account.
       ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-macos
-      # Pin to bypass the Elnora installer's api.github.com call for "latest
-      # release". CI runner IP pools routinely exhaust the unauthenticated
-      # 60/hr rate limit, which makes Phase 1 flaky on infra we don't own.
-      # This workflow tests Phase 2 (handoff); Phase 1 install resilience is
-      # tested by install-smoke-test.yml. Bump when cutting a new release.
-      ELNORA_CLI_VERSION: v1.5.0
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}/handoff-transcript.jsonl
       # Skip VS Code + Obsidian casks. macos-14 runners ship without them, so
       # brew installs them every run for nothing — the test never opens an
@@ -95,10 +85,6 @@ jobs:
             echo "::error::ANTHROPIC_API_KEY secret is not set"
             exit 1
           fi
-          if [ -z "$ELNORA_API_KEY" ]; then
-            echo "::error::ELNORA_API_KEY_TEST secret is not set"
-            exit 1
-          fi
           if [ -z "$ELNORA_HANDOFF_GH_TOKEN" ]; then
             echo "::error::PAT_TOKEN_TEST secret is not set"
             exit 1
@@ -107,10 +93,6 @@ jobs:
           case "$ANTHROPIC_API_KEY" in
             sk-ant-*) echo "ANTHROPIC_API_KEY shape OK" ;;
             *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;;
-          esac
-          case "$ELNORA_API_KEY" in
-            elnora_live_*) echo "ELNORA_API_KEY shape OK" ;;
-            *) echo "::error::ELNORA_API_KEY_TEST does not start with elnora_live_"; exit 1 ;;
           esac
           # Both classic (ghp_, gho_, ghu_, ghr_, ghs_) and fine-grained
           # (github_pat_) PAT prefixes are valid; just sanity-check the prefix.
@@ -268,7 +250,6 @@ jobs:
           s = p.read_text()
           before = len(s)
           s = re.sub(r'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***',     s)
-          s = re.sub(r'elnora_live_[A-Za-z0-9_\-]+',      'elnora_live_***REDACTED***', s)
           s = re.sub(r'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***',         s)
           s = re.sub(r'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***',  s)
           p.write_text(s)
@@ -359,19 +340,12 @@ jobs:
     timeout-minutes: 25
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      ELNORA_API_KEY: ${{ secrets.ELNORA_API_KEY_TEST }}
       ELNORA_HANDOFF_MODE: headless
       # See macOS job for why this exists and why it's NOT named GH_TOKEN.
       ELNORA_HANDOFF_GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
       # See macOS job for the rationale on why repo name includes the
       # OS suffix — the two jobs would otherwise race for the same name.
       ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-windows
-      # Pin to bypass the Elnora installer's api.github.com call for "latest
-      # release". CI runner IP pools routinely exhaust the unauthenticated
-      # 60/hr rate limit, which makes Phase 1 flaky on infra we don't own.
-      # This workflow tests Phase 2 (handoff); Phase 1 install resilience is
-      # tested by install-smoke-test.yml. Bump when cutting a new release.
-      ELNORA_CLI_VERSION: v1.5.0
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}\handoff-transcript.jsonl
       # Same rationale as install-smoke-test.yml — windows-2022 has no winget.
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
@@ -385,20 +359,12 @@ jobs:
             Write-Host "::error::ANTHROPIC_API_KEY secret is not set"
             exit 1
           }
-          if (-not $env:ELNORA_API_KEY) {
-            Write-Host "::error::ELNORA_API_KEY_TEST secret is not set"
-            exit 1
-          }
           if (-not $env:ELNORA_HANDOFF_GH_TOKEN) {
             Write-Host "::error::PAT_TOKEN_TEST secret is not set"
             exit 1
           }
           if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*") {
             Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"
-            exit 1
-          }
-          if ($env:ELNORA_API_KEY -notlike "elnora_live_*") {
-            Write-Host "::error::ELNORA_API_KEY_TEST does not start with elnora_live_"
             exit 1
           }
           $patOK = $env:ELNORA_HANDOFF_GH_TOKEN -match '^(ghp_|gho_|ghu_|ghr_|ghs_|github_pat_)'
@@ -555,7 +521,6 @@ jobs:
           $s = Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Raw
           $before = $s.Length
           $s = [regex]::Replace($s, 'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***')
-          $s = [regex]::Replace($s, 'elnora_live_[A-Za-z0-9_\-]+',      'elnora_live_***REDACTED***')
           $s = [regex]::Replace($s, 'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***')
           $s = [regex]::Replace($s, 'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***')
           Set-Content -Path $env:ELNORA_HANDOFF_TRANSCRIPT -Value $s -NoNewline

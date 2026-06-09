@@ -2,7 +2,7 @@
 # Claude Code Setup - Windows
 # ============================================================
 # Installs a complete Claude Code development environment:
-# Claude Code CLI, Elnora CLI, Node.js, Git, Python, VS Code,
+# Claude Code CLI, Node.js, Git, Python, VS Code,
 # GitHub CLI, and Obsidian.
 #
 # Run from PowerShell:
@@ -28,8 +28,7 @@ $ErrorActionPreference = "Continue"
 # We rely on the default %USERPROFILE% ACLs for confidentiality -- files
 # created under the user's profile dir inherit "owner + SYSTEM read/write
 # only" by default, so other local users on the machine cannot read this
-# log. The Elnora API key is captured via Read-Host -AsSecureString below
-# specifically so it never enters the transcript at all.
+# log.
 $LogFile = Join-Path $env:USERPROFILE "claude-starter-install.log"
 try { Start-Transcript -Path $LogFile -Force | Out-Null } catch { }
 
@@ -40,9 +39,9 @@ $FailedSteps = New-Object System.Collections.ArrayList
 # ------------------------------------------------------------
 # This script is safe to run as many times as you like - already-installed
 # tools are detected and skipped. The checkpoint file below goes one step
-# further: it remembers one-time actions that already finished (e.g. the
-# Elnora CLI download) so a re-run does not repeat them, and it lets the
-# script announce "resuming" so a re-run never feels like starting over.
+# further: it remembers one-time actions that already finished so a re-run
+# does not repeat them, and it lets the script announce "resuming" so a
+# re-run never feels like starting over.
 #
 # Why this matters: the single most common place people stop is the Claude
 # Code sign-in step. If that happens - or the script is interrupted anywhere
@@ -85,7 +84,7 @@ function Update-SessionPath {
     $user    = [System.Environment]::GetEnvironmentVariable("Path", "User")
     # Split into individual entries so dedup works against single bin paths
     # (without this, -notcontains compares the full PATH string and never
-    # matches, so $claudeBin/$elnoraBin get re-appended on every call).
+    # matches, so $claudeBin gets re-appended on every call).
     $entries = @()
     foreach ($src in @($machine, $user)) {
         if ($src) { $entries += ($src -split ';' | Where-Object { $_ }) }
@@ -94,11 +93,6 @@ function Update-SessionPath {
     $claudeBin = Join-Path $env:USERPROFILE ".local\bin"
     if ((Test-Path $claudeBin) -and ($entries -notcontains $claudeBin)) {
         $entries += $claudeBin
-    }
-    # Elnora CLI installer writes to %USERPROFILE%\.elnora\bin - ensure it's present.
-    $elnoraBin = Join-Path $env:USERPROFILE ".elnora\bin"
-    if ((Test-Path $elnoraBin) -and ($entries -notcontains $elnoraBin)) {
-        $entries += $elnoraBin
     }
     $env:Path = ($entries -join ";")
 }
@@ -221,25 +215,6 @@ Verify in a NEW PowerShell window:
   claude --version
 '@
     }
-    elseif ($Label -like "Elnora CLI*") {
-        return @'
-Try manually:
-  irm https://cli.elnora.ai/install.ps1 | iex
-npm fallback (requires Node.js, installed later in this script):
-  npm install -g @elnora-ai/cli
-If PowerShell blocks the install script with an execution policy error:
-  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-  irm https://cli.elnora.ai/install.ps1 | iex
-The installer writes elnora.exe to %USERPROFILE%\.elnora\bin and updates
-User PATH. If PATH reverted (corporate Group Policy), copy the exe into
-WindowsApps (always on default user PATH):
-  Copy-Item "$env:USERPROFILE\.elnora\bin\elnora.exe" `
-            "$env:LOCALAPPDATA\Microsoft\WindowsApps\elnora.exe" -Force
-Docs: https://cli.elnora.ai
-Verify in a NEW PowerShell window:
-  elnora --version
-'@
-    }
     elseif ($Label -like "GitHub CLI*") {
         return @'
 Try manually:
@@ -339,10 +314,8 @@ function Invoke-Step {
     #
     # -SuppressPattern: optional regex; matching lines are still recorded in the
     # capture buffer (so a FAILURE box can still quote them) but are NOT echoed
-    # to the user's terminal. Used to drop known noise (e.g. the Elnora
-    # installer's `VALIDATION_ERROR: API key is required` JSON, which the
-    # installer auto-emits when its post-install auth-setup step runs without
-    # a TTY/API key in CI - see the Elnora CLI step below).
+    # to the user's terminal. Used to drop known noise (e.g. winget's
+    # progress-bar redraws - see $wingetNoisePattern below).
     param(
         [Parameter(Mandatory)][string]$Label,
         [Parameter(Mandatory)][scriptblock]$Action,
@@ -534,12 +507,12 @@ if (-not $hasWinget) {
     }
 }
 
-# --- [1/9] Claude Code CLI (installed FIRST - zero dependencies) ---
+# --- [1/8] Claude Code CLI (installed FIRST - zero dependencies) ---
 # Using Anthropic's native installer so Claude Code is the very first thing on
 # the machine. Works even when winget is missing (unlike the rest of the tools
 # below). Writes a self-contained binary to %USERPROFILE%\.local\bin\claude.exe.
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
-    Write-Host "[1/9] Installing Claude Code..." -ForegroundColor Green
+    Write-Host "[1/8] Installing Claude Code..." -ForegroundColor Green
     Write-Host "  Using Anthropic's native installer (no prerequisites required)." -ForegroundColor Gray
     # Run the installer in a child powershell.exe. `iex` evaluates its input in
     # caller scope, so an `exit N` inside the fetched installer would terminate
@@ -550,9 +523,9 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     #
     # The leading SecurityProtocol assignment forces TLS 1.2. powershell.exe =
     # Windows PowerShell 5.1, which on older/unpatched Windows 10 builds
-    # defaults to SSL3/TLS 1.0. Modern CDNs (claude.ai, cli.elnora.ai) reject
-    # that handshake and `irm` fails with an opaque "underlying connection was
-    # closed" error the FAILURE box can't explain.
+    # defaults to SSL3/TLS 1.0. Modern CDNs (claude.ai) reject that handshake
+    # and `irm` fails with an opaque "underlying connection was closed"
+    # error the FAILURE box can't explain.
     Invoke-Step "Claude Code" { powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://claude.ai/install.ps1 | iex" }
     Update-SessionPath
 
@@ -588,144 +561,10 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
         }
     }
 } else {
-    Write-Host "[1/9] Claude Code already installed: $(claude --version). Skipping." -ForegroundColor Gray
+    Write-Host "[1/8] Claude Code already installed: $(claude --version). Skipping." -ForegroundColor Gray
 }
 
-# --- [2/9] Elnora CLI (installed SECOND - also zero dependencies) ---
-# Elnora's installer downloads a pre-built binary to %USERPROFILE%\.elnora\bin
-# and updates User PATH. No winget/Node required. "AI surfaces first,
-# toolchain second" mirrors the macOS script.
-# We always install the LATEST release so users get current bug fixes and
-# features. To keep the upgrade path tight, we re-run the installer even
-# when `elnora` is already on PATH - Elnora's installer is idempotent and a
-# no-op when the existing binary already matches the latest release.
-#
-# Escape hatch: set $env:ELNORA_CLI_VERSION (e.g. "v1.5.0") to pin to a
-# specific release. Useful behind a corporate NAT where many machines share
-# an IP and can exhaust GitHub's 60/hr unauthenticated rate limit on
-# api.github.com/repos/.../releases/latest. Workshop hosts on shared wifi
-# may want to set this in the environment before kicking off the install.
-if ($env:ELNORA_CLI_VERSION) {
-    # Validate before use. The value flows into a single-quoted PowerShell
-    # string that is then passed to a child `powershell.exe -Command` (see
-    # $elnoraInstallerCommand below). Without validation, a value like
-    # `v1.0';<cmd>;'` would close the quote and chain arbitrary commands.
-    # The published Elnora release tag format is `vMAJOR.MINOR[.PATCH]`
-    # (no suffixes, no whitespace), so anything outside
-    # `^v?\d+\.\d+(\.\d+)?$` is either a typo or an attack.
-    if ($env:ELNORA_CLI_VERSION -notmatch '^v?\d+\.\d+(\.\d+)?$') {
-        Write-Host "[!] ELNORA_CLI_VERSION='$($env:ELNORA_CLI_VERSION)' is not a valid release tag." -ForegroundColor Red
-        Write-Host "    Expected format: v1.2.3 (or 1.2.3, or v1.2). Refusing to use it" -ForegroundColor Red
-        Write-Host "    because it would be interpreted as PowerShell input by the installer." -ForegroundColor Red
-        Write-Host "    Unset the variable or set it to a valid Elnora release tag and re-run." -ForegroundColor Red
-        exit 1
-    }
-    $elnoraCliVersion = $env:ELNORA_CLI_VERSION
-    $elnoraInstallLabel = "$elnoraCliVersion (pinned via ELNORA_CLI_VERSION)"
-} else {
-    $elnoraCliVersion = ""
-    $elnoraInstallLabel = "latest"
-}
-
-# Build the installer invocation. Passing an empty -Version arg lets the
-# installer fall through to its default (latest GitHub release).
-# $elnoraCliVersion is regex-validated above (or empty), so the single-quoted
-# expansion below is safe.
-$elnoraInstallerCommand = if ($elnoraCliVersion) {
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & ([scriptblock]::Create((Invoke-RestMethod 'https://cli.elnora.ai/install.ps1'))) -Version '$elnoraCliVersion'"
-} else {
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & ([scriptblock]::Create((Invoke-RestMethod 'https://cli.elnora.ai/install.ps1')))"
-}
-
-# When the caller has set ELNORA_SKIP_HANDOFF=1 (CI smoke test, headless
-# bootstrap), the Elnora installer's auto-run "auth setup" step has no TTY
-# and no API key, so it prints a 5-line VALIDATION_ERROR JSON block plus
-# stray `System.Management.Automation.RemoteException` lines into the user
-# log. The installer itself still exits 0 (the JSON is informational), so
-# nothing real is broken - it's pure noise. Filter both shapes from
-# user-facing output while keeping them in the FAILURE-box capture buffer
-# in case the installer ever does fail in this mode and we need the bytes.
-# Real interactive users (no ELNORA_SKIP_HANDOFF) see everything as before.
-if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless") {
-    $elnoraNoisePattern = '"error":\s*"API key is required|"code":\s*"VALIDATION_ERROR"|"suggestion":\s*"Get your API key|^\s*\{\s*$|^\s*\}\s*$|System\.Management\.Automation\.RemoteException'
-} else {
-    $elnoraNoisePattern = ""
-}
-
-$elnoraIsInstalled = [bool](Get-Command elnora -ErrorAction SilentlyContinue)
-if (-not $elnoraIsInstalled) {
-    Write-Host "[2/9] Installing Elnora CLI ($elnoraInstallLabel)..." -ForegroundColor Green
-    Write-Host "  Using Elnora's native installer (no prerequisites required)." -ForegroundColor Gray
-    # Sub-process isolation: see matching comment in the Claude Code block above.
-    # The Elnora installer has 8 `exit 1` paths (GitHub API failure, 404 on
-    # ARM64 Windows since no win-arm64 asset is published, AV-blocked copy,
-    # etc.) - without the sub-process, any one of them would kill
-    # setup-windows.ps1 mid-run.
-    # Leading SecurityProtocol assignment forces TLS 1.2 on PS 5.1 - see the
-    # Claude Code block above for the full reasoning.
-    # The scriptblock-create dance is needed to pass -Version to the installer.
-    # iex evaluates a string in caller scope and ignores trailing -Version
-    # because iex itself has no such param; converting to a scriptblock first
-    # honors the installer's `param([string]$Version)` declaration.
-    #
-    # Use Invoke-RestMethod (not Invoke-WebRequest). IRM auto-decodes text
-    # responses to a string. IWR returns a `Response.Content` that is a byte[]
-    # for some content types (including what cli.elnora.ai serves install.ps1
-    # as), and `[scriptblock]::Create($byteArray)` then chokes trying to parse
-    # decimal byte values like "35 32 69 108..." as PowerShell syntax.
-    Invoke-Step "Elnora CLI" { powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $elnoraInstallerCommand } -SuppressPattern $elnoraNoisePattern
-    Update-SessionPath
-
-    # Same Group Policy fallback as Claude Code - copy the exe into WindowsApps
-    # if User PATH didn't pick up .elnora\bin.
-    $elnoraBinDir = Join-Path $env:USERPROFILE ".elnora\bin"
-    $elnoraExe    = Join-Path $elnoraBinDir "elnora.exe"
-    if (-not (Test-Path $elnoraExe)) {
-        $alreadyLogged = @($FailedSteps | Where-Object { $_ -like "Elnora CLI*" }).Count -gt 0
-        if (-not $alreadyLogged) {
-            Write-Host "  [!] Installer completed but elnora.exe is missing at $elnoraExe." -ForegroundColor Red
-            [void]$FailedSteps.Add("Elnora CLI (binary not found after install)")
-        }
-    } else {
-        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        if ($userPath -notlike "*$elnoraBinDir*") {
-            Write-Host "  [!] User PATH does not contain '.elnora\bin' after install." -ForegroundColor Yellow
-            Write-Host "      Common causes: corporate Group Policy reverting User PATH," -ForegroundColor Yellow
-            Write-Host "      antivirus blocking the installer's PATH update, or running" -ForegroundColor Yellow
-            Write-Host "      from a non-interactive shell (CI, scheduled task)." -ForegroundColor Yellow
-            Write-Host "      Falling back: copying elnora.exe to WindowsApps (always on default user PATH)." -ForegroundColor Yellow
-            Write-Host "      Heads up: this fallback copy will NOT auto-update with Elnora releases." -ForegroundColor Yellow
-            Write-Host "      Re-run this script (or the Elnora installer) to refresh after" -ForegroundColor Yellow
-            Write-Host "      upstream releases. See RECOVERY.md for details." -ForegroundColor Yellow
-            if (-not (Copy-StandaloneExeToWindowsApps -ExePath $elnoraExe -ToolName "elnora")) {
-                [void]$FailedSteps.Add("Elnora CLI PATH")
-            }
-        }
-    }
-    Write-Host "  Next: paste your API key when prompted in step [3/3] of the auth section below," -ForegroundColor Gray
-    Write-Host "        or run 'elnora auth login --api-key <key>' later. Get a key at" -ForegroundColor Gray
-    Write-Host "        https://platform.elnora.ai/settings (API Keys tab)." -ForegroundColor Gray
-    if (Test-Path $elnoraExe) { Set-Checkpoint "elnora-cli" }
-} elseif ((Test-Checkpoint "elnora-cli") -and (-not $env:ELNORA_CLI_VERSION)) {
-    # Resume fast-path: the installer's download/refresh is the only step here
-    # that does real network work even when elnora is already present. If we
-    # already refreshed it during an earlier run of THIS setup, skip the
-    # re-download so a resume after the Claude sign-in stop is near-instant.
-    # (Skipped when a version is pinned - an explicit pin should always re-run.)
-    $currentElnoraVersion = (& elnora --version 2>$null)
-    if (-not $currentElnoraVersion) { $currentElnoraVersion = "unknown" }
-    Write-Host "[2/9] Elnora CLI already installed ($currentElnoraVersion) and refreshed earlier this setup - skipping re-download." -ForegroundColor Gray
-    Update-SessionPath
-} else {
-    $currentElnoraVersion = (& elnora --version 2>$null)
-    if (-not $currentElnoraVersion) { $currentElnoraVersion = "unknown" }
-    Write-Host "[2/9] Elnora CLI already installed ($currentElnoraVersion) - refreshing to $elnoraInstallLabel..." -ForegroundColor Green
-    Invoke-Step "Elnora CLI upgrade" { powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $elnoraInstallerCommand } -SuppressPattern $elnoraNoisePattern
-    Update-SessionPath
-    Set-Checkpoint "elnora-cli"
-}
-
-# --- [3/9] Node.js (pinned to >=22 for Mac/Windows parity) ---
+# --- [2/8] Node.js (pinned to >=22 for Mac/Windows parity) ---
 # Mirror setup-mac.sh's major-version probe (lines 426-432). Bare
 # `Get-Command node` would let a pre-installed Node 18 / 20 satisfy the
 # check and skip the install - the user then keeps the wrong major and
@@ -755,20 +594,20 @@ if (-not $nodeMajorOk) {
     # script silently kept whatever Node was present; preserve that fallback.
     if (-not $hasWinget) {
         if ($nodeCurrentVersion) {
-            Write-Host "[3/9] Node.js: detected $nodeCurrentVersion (older than LTS 22). winget is not available, so the upgrade can't run automatically. Keeping the current version. To upgrade manually, install winget (Microsoft Store > 'App Installer') and re-run, or download Node 22+ from https://nodejs.org/." -ForegroundColor Yellow
+            Write-Host "[2/8] Node.js: detected $nodeCurrentVersion (older than LTS 22). winget is not available, so the upgrade can't run automatically. Keeping the current version. To upgrade manually, install winget (Microsoft Store > 'App Installer') and re-run, or download Node 22+ from https://nodejs.org/." -ForegroundColor Yellow
         } elseif ($env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
             # CI smoke test on a winget-less runner. Skipped, not failed -
             # see the matching pre-check at the top of the script.
-            Write-Host "[3/9] Node.js: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
+            Write-Host "[2/8] Node.js: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
         } else {
-            Write-Host "[3/9] Node.js not found and winget is not available. Install Node 22+ manually from https://nodejs.org/ and re-run this script." -ForegroundColor Red
+            Write-Host "[2/8] Node.js not found and winget is not available. Install Node 22+ manually from https://nodejs.org/ and re-run this script." -ForegroundColor Red
             [void]$FailedSteps.Add("Node.js (winget unavailable, no fallback)")
         }
     } else {
         if ($nodeCurrentVersion) {
-            Write-Host "[3/9] Detected Node $nodeCurrentVersion, upgrading to Node 22 LTS..." -ForegroundColor Yellow
+            Write-Host "[2/8] Detected Node $nodeCurrentVersion, upgrading to Node 22 LTS..." -ForegroundColor Yellow
         } else {
-            Write-Host "[3/9] Installing Node.js 22 LTS..." -ForegroundColor Green
+            Write-Host "[2/8] Installing Node.js 22 LTS..." -ForegroundColor Green
         }
         # Pin to Node 22.x -- the `OpenJS.NodeJS.LTS` alias rolls forward
         # past 22 in winget's catalog, which left mac (`brew install
@@ -864,21 +703,21 @@ if (-not $nodeMajorOk) {
         Update-SessionPath
     }
 } else {
-    Write-Host "[3/9] Node.js already installed: $nodeCurrentVersion. Skipping." -ForegroundColor Gray
+    Write-Host "[2/8] Node.js already installed: $nodeCurrentVersion. Skipping." -ForegroundColor Gray
 }
 
-# --- [4/9] Git + user config ---
+# --- [3/8] Git + user config ---
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     if (-not $hasWinget -and $env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
         # CI smoke test on a winget-less runner - documented soft skip.
-        Write-Host "[4/9] Git: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
+        Write-Host "[3/8] Git: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
     } else {
-        Write-Host "[4/9] Installing Git..." -ForegroundColor Green
+        Write-Host "[3/8] Installing Git..." -ForegroundColor Green
         Invoke-Step "Git" { winget install Git.Git --accept-package-agreements --accept-source-agreements --disable-interactivity --silent } -SuppressPattern $wingetNoisePattern
         Update-SessionPath
     }
 } else {
-    Write-Host "[4/9] Git already installed: $(git --version). Skipping." -ForegroundColor Gray
+    Write-Host "[3/8] Git already installed: $(git --version). Skipping." -ForegroundColor Gray
 }
 
 if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -927,15 +766,15 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "      See the Git remediation in the recap at the end of this run." -ForegroundColor Red
 }
 
-# --- [5/9] Python 3.12 ---
+# --- [4/8] Python 3.12 ---
 # Test-RealPython rejects the Microsoft Store stub alias - Get-Command alone
 # would return a false positive on a fresh Windows laptop.
 if (-not (Test-RealPython)) {
     if (-not $hasWinget -and $env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
         # CI smoke test on a winget-less runner - documented soft skip.
-        Write-Host "[5/9] Python 3.12: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
+        Write-Host "[4/8] Python 3.12: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
     } else {
-        Write-Host "[5/9] Installing Python 3.12..." -ForegroundColor Green
+        Write-Host "[4/8] Installing Python 3.12..." -ForegroundColor Green
         # Remove the Store stub BEFORE install so winget's install doesn't get shadowed.
         [void](Remove-PythonStoreAlias)
         Invoke-Step "Python 3.12" { winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements --disable-interactivity --silent } -SuppressPattern $wingetNoisePattern
@@ -976,10 +815,10 @@ if (-not (Test-RealPython)) {
         }
     }
 } else {
-    Write-Host "[5/9] Python already installed: $(python --version). Skipping." -ForegroundColor Gray
+    Write-Host "[4/8] Python already installed: $(python --version). Skipping." -ForegroundColor Gray
 }
 
-# --- [6/9] VS Code ---
+# --- [5/8] VS Code ---
 $codePaths = @(
     "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
     "$env:ProgramFiles\Microsoft VS Code\Code.exe",
@@ -990,25 +829,25 @@ if ($env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
     # CI/test escape hatch: skip optional editor on environments where winget
     # isn't available (windows-2022/2025 GitHub Actions runners). Used by
     # .github/workflows/install-smoke-test.yml so the smoke test validates
-    # the core path (Claude Code + Elnora CLI + Group Policy fallback)
+    # the core path (Claude Code + Group Policy fallback)
     # without false-positive FAILUREs for components that need winget on a
     # Server SKU. Real Win10/11 attendees never set this variable.
-    Write-Host "[6/9] VS Code: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run." -ForegroundColor Gray
+    Write-Host "[5/8] VS Code: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run." -ForegroundColor Gray
 } elseif (-not $codeInstalled) {
-    Write-Host "[6/9] Installing VS Code..." -ForegroundColor Green
+    Write-Host "[5/8] Installing VS Code..." -ForegroundColor Green
     Invoke-Step "VS Code" { winget install Microsoft.VisualStudioCode --accept-package-agreements --accept-source-agreements --disable-interactivity --silent } -SuppressPattern $wingetNoisePattern
     Update-SessionPath
 } else {
-    Write-Host "[6/9] VS Code already installed. Skipping." -ForegroundColor Gray
+    Write-Host "[5/8] VS Code already installed. Skipping." -ForegroundColor Gray
 }
 
-# --- [7/9] GitHub CLI ---
+# --- [6/8] GitHub CLI ---
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     if (-not $hasWinget -and $env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
         # CI smoke test on a winget-less runner - documented soft skip.
-        Write-Host "[7/9] GitHub CLI: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
+        Write-Host "[6/8] GitHub CLI: ELNORA_SKIP_OPTIONAL_INSTALLS=1 and winget unavailable - skipping." -ForegroundColor Gray
     } else {
-        Write-Host "[7/9] Installing GitHub CLI..." -ForegroundColor Green
+        Write-Host "[6/8] Installing GitHub CLI..." -ForegroundColor Green
         Invoke-Step "GitHub CLI" { winget install --id GitHub.cli --accept-package-agreements --accept-source-agreements --disable-interactivity --silent } -SuppressPattern $wingetNoisePattern
         Update-SessionPath
 
@@ -1036,10 +875,10 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         }
     }
 } else {
-    Write-Host "[7/9] GitHub CLI already installed: $(gh --version | Select-Object -First 1). Skipping." -ForegroundColor Gray
+    Write-Host "[6/8] GitHub CLI already installed: $(gh --version | Select-Object -First 1). Skipping." -ForegroundColor Gray
 }
 
-# --- [8/9] Obsidian (optional - knowledge base) ---
+# --- [7/8] Obsidian (optional - knowledge base) ---
 $obsidianPaths = @(
     "$env:LOCALAPPDATA\Obsidian\Obsidian.exe",
     "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe",
@@ -1058,19 +897,19 @@ if (-not $obsidianInstalled -and $hasWinget) {
 }
 if ($env:ELNORA_SKIP_OPTIONAL_INSTALLS -eq "1") {
     # See matching comment on the VS Code step above.
-    Write-Host "[8/9] Obsidian: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run." -ForegroundColor Gray
+    Write-Host "[7/8] Obsidian: ELNORA_SKIP_OPTIONAL_INSTALLS=1 - skipping for non-interactive run." -ForegroundColor Gray
 } elseif (-not $obsidianInstalled) {
-    Write-Host "[8/9] Installing Obsidian (optional)..." -ForegroundColor Green
+    Write-Host "[7/8] Installing Obsidian (optional)..." -ForegroundColor Green
     Invoke-Step "Obsidian" { winget install Obsidian.Obsidian --accept-package-agreements --accept-source-agreements --disable-interactivity --silent } -SuppressPattern $wingetNoisePattern
     Update-SessionPath
 } else {
-    Write-Host "[8/9] Obsidian already installed. Skipping." -ForegroundColor Gray
+    Write-Host "[7/8] Obsidian already installed. Skipping." -ForegroundColor Gray
 }
 
-# --- [9/9] Projects folder ---
+# --- [8/8] Projects folder ---
 $projectsDir = "$env:USERPROFILE\Documents\Projects"
 if (-not (Test-Path $projectsDir)) {
-    Write-Host "[9/9] Creating Projects folder at $projectsDir..." -ForegroundColor Green
+    Write-Host "[8/8] Creating Projects folder at $projectsDir..." -ForegroundColor Green
     try {
         New-Item -ItemType Directory -Path $projectsDir -ErrorAction Stop | Out-Null
         Write-Host "  Done." -ForegroundColor Yellow
@@ -1081,7 +920,7 @@ if (-not (Test-Path $projectsDir)) {
         [void]$FailedSteps.Add("Projects folder")
     }
 } else {
-    Write-Host "[9/9] Projects folder already exists. Skipping." -ForegroundColor Gray
+    Write-Host "[8/8] Projects folder already exists. Skipping." -ForegroundColor Gray
 }
 
 # --- chrome-devtools MCP override (Windows-only) ---
@@ -1241,7 +1080,6 @@ if ($vscodeExe) {
 }
 
 $results["Claude Code"] = Get-ToolVersion 'claude'
-$results["Elnora CLI"]  = Get-ToolVersion 'elnora'
 
 $ghVer = Get-ToolVersion 'gh'
 if (-not $ghVer -and $ciSkipMissingWinget) { $ghVer = "__SKIPPED_OPTIONAL" }
@@ -1297,7 +1135,7 @@ Write-Host ""
 # VS Code reminder banner. Bright yellow box with blank lines above and below
 # so the "quit fully" rule reads as a separate section, not as another summary
 # row. Real users on workshops have walked past this in plain-text form and
-# wondered why their newly-installed `claude` / `elnora` commands weren't
+# wondered why their newly-installed `claude` command wasn't
 # visible in the VS Code integrated terminal - the answer is always that
 # VS Code cached its PATH at launch time.
 Write-Host "  +============================================================+" -ForegroundColor Yellow
@@ -1345,7 +1183,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
     Write-Host ""
 } else {
     # ---- Claude auth ----
-    Write-Host "[1/3] Claude Code"
+    Write-Host "[1/2] Claude Code"
     if ($env:ANTHROPIC_API_KEY) {
         Write-Host "      ANTHROPIC_API_KEY set -- using API key, skipping OAuth."
     } else {
@@ -1452,7 +1290,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
     Write-Host ""
 
     # ---- GitHub auth ----
-    Write-Host "[2/3] GitHub CLI"
+    Write-Host "[2/2] GitHub CLI"
     if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) {
         Write-Host "      GH_TOKEN/GITHUB_TOKEN set -- skipping OAuth."
     } else {
@@ -1484,107 +1322,16 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
         }
     }
     Write-Host ""
-
-    # ---- Elnora auth ----
-    Write-Host "[3/3] Elnora CLI"
-    if ($env:ELNORA_API_KEY) {
-        Write-Host "      ELNORA_API_KEY set -- skipping prompt."
-    } else {
-        $elnoraStatus = elnora auth status 2>$null
-        if ($elnoraStatus -match '"authenticated"\s*:\s*true') {
-            Write-Host "      [OK] Already authenticated."
-            Set-Checkpoint "auth-elnora"
-        } else {
-            Write-Host "      Not authenticated. Elnora uses an API key (not browser OAuth)."
-            Write-Host "      Get one at:  https://platform.elnora.ai/settings (API Keys tab)"
-            Write-Host "      [P]aste key now / [s]kip (Elnora MCP will prompt on first use)"
-            $answer = Read-Host "      >"
-            if ([string]::IsNullOrWhiteSpace($answer)) { $answer = "s" }
-            switch -Regex ($answer) {
-                "^[Pp]" {
-                    # Hand off to elnora's interactive prompt instead of
-                    # collecting the key here and passing it via --api-key.
-                    # Two wins:
-                    #  1. No argv exposure. `elnora auth login --api-key <key>`
-                    #     would briefly expose the key via `Get-Process`/WMI
-                    #     to anything polling the process table.
-                    #  2. No log leak. elnora's promptSecret (see
-                    #     elnora-cli/src/lib/prompt.ts) masks input with `*`
-                    #     in raw mode, so Start-Transcript only captures
-                    #     asterisks -- never the elnora_live_* key.
-                    # Note: elnora exits 0 on Ctrl+C cancel too, so we
-                    # re-check auth status afterward instead of trusting
-                    # the exit code.
-                    elnora auth login
-                    $elnoraStatusAfter = elnora auth status 2>$null
-                    if ($elnoraStatusAfter -match '"authenticated"\s*:\s*true') {
-                        Write-Host "      [OK] Saved."
-                        Set-Checkpoint "auth-elnora"
-                    } else {
-                        Write-Host "      [SKIP] Not authenticated. Try manually:  elnora auth login"
-                    }
-                }
-                default {
-                    Write-Host "      [SKIP] To do later:  elnora auth login"
-                }
-            }
-        }
-    }
-    Write-Host ""
-
-    # ---- Wire Elnora plugin into ~/.claude (idempotent JSON merge) ----
-    # `elnora setup claude` registers the elnora-plugins marketplace in
-    # ~/.claude/plugins/known_marketplaces.json and sets
-    # enabledPlugins["elnora@elnora-plugins"]=true in ~/.claude/settings.json.
-    # The starter kit's project-scope .claude/settings.json already enables
-    # the plugin for THIS directory, so this step only matters for using
-    # Elnora skills OUTSIDE this repo. It also clears the `elnora doctor`
-    # "Plugin enabled - settings.json not found" warning, which only reads
-    # user-scope settings.
-    #
-    # NOTE: this does NOT touch MCP. The Elnora MCP server's auth flow is
-    # unrelated and depends on upstream Claude Code header bugs.
-    Write-Host "[Plugin] Wiring Elnora plugin into Claude Code config"
-    $elnoraOnPath = [bool](Get-Command elnora -ErrorAction SilentlyContinue)
-    $claudeUserDir = Join-Path $env:USERPROFILE ".claude"
-    if (-not $elnoraOnPath) {
-        Write-Host "      [SKIP] 'elnora' command not on PATH yet." -ForegroundColor Gray
-        Write-Host "             Open a new PowerShell window and run" -ForegroundColor Gray
-        Write-Host "             'elnora setup claude' once Claude Code has" -ForegroundColor Gray
-        Write-Host "             been launched at least once." -ForegroundColor Gray
-    } elseif (Test-Path $claudeUserDir) {
-        $setupOutput = elnora setup claude 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "      [OK] Plugin enabled user-globally." -ForegroundColor Green
-        } else {
-            Write-Host "      [WARN] 'elnora setup claude' returned non-zero. Output:" -ForegroundColor Yellow
-            $setupOutput | ForEach-Object { Write-Host "             $_" -ForegroundColor Gray }
-            Write-Host "             Non-fatal - the plugin still works for THIS" -ForegroundColor Gray
-            Write-Host "             project via .claude\settings.json in this repo." -ForegroundColor Gray
-        }
-    } else {
-        Write-Host "      [SKIP] $claudeUserDir does not exist yet." -ForegroundColor Gray
-        Write-Host "             This is normal if you haven't launched Claude Code" -ForegroundColor Gray
-        Write-Host "             yet in this terminal session. The Elnora plugin is" -ForegroundColor Gray
-        Write-Host "             already enabled for THIS project via the repo's" -ForegroundColor Gray
-        Write-Host "             .claude\settings.json, so it activates the moment" -ForegroundColor Gray
-        Write-Host "             you open Claude Code in this directory." -ForegroundColor Gray
-        Write-Host "             To also enable it user-globally (for use outside" -ForegroundColor Gray
-        Write-Host "             this project), run 'elnora setup claude' after" -ForegroundColor Gray
-        Write-Host "             your first 'claude' launch." -ForegroundColor Gray
-    }
-    Write-Host ""
 }
 
 Write-Host "==========================================="
 Write-Host "  Quick PATH note"
 Write-Host "==========================================="
 Write-Host ""
-Write-Host "  'claude' is at %USERPROFILE%\.local\bin\ and 'elnora' is at"
-Write-Host "  %USERPROFILE%\.elnora\bin\."
+Write-Host "  'claude' is at %USERPROFILE%\.local\bin\."
 Write-Host "  - In any terminal opened AFTER this install: works automatically."
 Write-Host "  - In a terminal opened BEFORE this install (rare):"
-Write-Host "      `$env:Path = `"`$env:USERPROFILE\.local\bin;`$env:USERPROFILE\.elnora\bin;`$env:Path`""
+Write-Host "      `$env:Path = `"`$env:USERPROFILE\.local\bin;`$env:Path`""
 Write-Host "    or just open a fresh PowerShell window."
 Write-Host ""
 
@@ -1598,7 +1345,7 @@ Write-Host ""
 # verifications, bootstrap-e2e checks) see every binary Phase 1 installed.
 # Without this, a fresh pwsh in the next step inherits the runner's job-
 # start PATH snapshot, which doesn't include %USERPROFILE%\.local\bin
-# (Claude), %USERPROFILE%\.elnora\bin, or anything winget added after job
+# (Claude) or anything winget added after job
 # start. Update-SessionPath fixed this for the current process; this fixes
 # it for downstream steps. No-op outside GH Actions (variable unset).
 if ($env:GITHUB_PATH) {
@@ -1611,40 +1358,6 @@ if ($env:GITHUB_PATH) {
 # Close the transcript before handing off, so the log file is flushed and
 # Claude can read it as part of Phase 2.
 try { Stop-Transcript | Out-Null } catch { }
-
-# Post-process the install log to strip Elnora installer noise.
-#
-# Background: the live terminal already filters this via Invoke-Step's
-# -SuppressPattern. But Start-Transcript hooks the host independently and
-# captures the unfiltered subprocess output, so the file users see (and mail
-# to support) still contains the noise. We rewrite the file once, after
-# Stop-Transcript has flushed it, with the same patterns the live filter
-# uses. Keeps the on-disk log readable without changing what live users saw.
-#
-# Scoped to ELNORA_SKIP_HANDOFF=1 / headless test mode for the same reason
-# the live filter is -- interactive users should still see all output, since
-# any "noise" in their flow may indicate a real problem.
-if (($env:ELNORA_SKIP_HANDOFF -eq "1") -or ($env:ELNORA_HANDOFF_MODE -eq "headless")) {
-    if (Test-Path $LogFile) {
-        try {
-            $raw = Get-Content $LogFile -Raw -ErrorAction Stop
-            $cleaned = [regex]::Replace($raw, '(?m)^.*("error":\s*"API key is required|"code":\s*"VALIDATION_ERROR"|"suggestion":\s*"Get your API key|System\.Management\.Automation\.RemoteException).*\r?\n', '')
-            # Also drop solitary `{` / `}` lines that are the JSON-block
-            # leftovers once the keyed lines above are gone. Match only
-            # lines that are pure whitespace + a single brace.
-            $cleaned = [regex]::Replace($cleaned, '(?m)^\s*[\{\}]\s*\r?\n', '')
-            if ($cleaned -ne $raw) {
-                # Write BOM-less UTF-8 directly to avoid Set-Content's
-                # PS-5.1 default-encoding surprise (it picks the system
-                # codepage, which may not match what Start-Transcript
-                # produced and can corrupt the log on subsequent reads).
-                [System.IO.File]::WriteAllText($LogFile, $cleaned, [System.Text.UTF8Encoding]::new($false))
-            }
-        } catch {
-            # Best-effort cleanup; never fail the script over a log polish.
-        }
-    }
-}
 
 # The exact prompt handed to Claude. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
@@ -1677,6 +1390,64 @@ if ($claudeAvailable) {
     #      interactive handoff; refuse for headless mode where claude
     #      would run with bypassPermissions (see headless branch below).
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+    # ---- VS Code workspace + window restore -------------------------------
+    # Two fixes for "I closed VS Code and it forgot which folder this was":
+    #   1. Open a NAMED <workspace>.code-workspace instead of a bare folder, so
+    #      it lands in File > Open Recent as one clear, re-openable entry.
+    #   2. Set window.restoreWindows:"all" in the user's GLOBAL VS Code / Cursor
+    #      settings so relaunching the app reopens this workspace automatically.
+    # Both are best-effort: any failure must never break the handoff. Mirrors
+    # ensure_vscode_workspace in setup-mac.sh (PowerShell JSON instead of
+    # python3, since Windows has no guaranteed python3).
+    $workspaceFile = Join-Path $scriptDir ("$(Split-Path -Leaf $scriptDir).code-workspace")
+    function Initialize-VSCodeWorkspace {
+        # 1. Named workspace file (idempotent: only write if missing).
+        if (-not (Test-Path -LiteralPath $workspaceFile)) {
+            $wsJson = @'
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {}
+}
+'@
+            Set-Content -LiteralPath $workspaceFile -Value $wsJson -Encoding UTF8
+        }
+
+        # 2. Merge restoreWindows into global settings for installed editors.
+        foreach ($app in @('Code', 'Code - Insiders', 'Cursor')) {
+            $userDir = Join-Path $env:APPDATA (Join-Path $app 'User')
+            # Only touch editors the user has actually launched (User dir
+            # exists); don't fabricate settings for one that isn't installed.
+            if (-not (Test-Path -LiteralPath $userDir)) { continue }
+            $settings = Join-Path $userDir 'settings.json'
+            try {
+                $obj = $null
+                if (Test-Path -LiteralPath $settings) {
+                    $raw = Get-Content -LiteralPath $settings -Raw
+                    if ([string]::IsNullOrWhiteSpace($raw)) {
+                        $obj = [pscustomobject]@{}
+                    } else {
+                        # VS Code settings are JSONC. If comments/trailing
+                        # commas make this throw, we fall to catch and leave the
+                        # file ALONE rather than risk clobbering it.
+                        $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+                    }
+                } else {
+                    $obj = [pscustomobject]@{}
+                }
+                if (($obj.PSObject.Properties.Name -contains 'window.restoreWindows') -and ($obj.'window.restoreWindows' -eq 'all')) {
+                    continue
+                }
+                $obj | Add-Member -NotePropertyName 'window.restoreWindows' -NotePropertyValue 'all' -Force
+                $obj | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $settings -Encoding UTF8
+            } catch {
+                # Unparseable JSONC or write error -- never let it abort setup.
+            }
+        }
+    }
+
     $markerFile = Join-Path $scriptDir ".elnora-ai-agent-hackathon-starter-kit-marker"
     $docFile = Join-Path $scriptDir "INSTALL_FOR_AGENTS.md"
     $markerMissing = $false
@@ -1717,9 +1488,6 @@ if ($claudeAvailable) {
         # because nobody's there to approve tool calls).
         #
         # Requires ANTHROPIC_API_KEY in env so claude skips browser OAuth.
-        # Pre-staged ELNORA_API_KEY in env lets Claude skip the "ask user
-        # for the API key" step in INSTALL_FOR_AGENTS.md (the doc handles
-        # that branch explicitly).
 
         # Hard requirement for headless mode: the integrity marker MUST be
         # present. The marker is what proves the doc claude is about to
@@ -1817,6 +1585,10 @@ if ($claudeAvailable) {
     #      VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or the
     #      `code` shim isn't on PATH yet.
     if ($env:TERM_PROGRAM -eq "vscode") {
+        # Already in VS Code, so we don't launch a window -- but still drop the
+        # named workspace file and set restoreWindows so the NEXT relaunch
+        # reopens this project instead of an empty window.
+        try { Initialize-VSCodeWorkspace } catch { }
         Write-Host "Already inside VS Code - starting Claude in this terminal." -ForegroundColor White
         Write-Host "On first run, your browser will open to log into your Claude Pro/Max account." -ForegroundColor White
         Write-Host ""
@@ -1834,6 +1606,11 @@ if ($claudeAvailable) {
             # lives in $HandoffPrompt above. The helper reads, deletes, then
             # invokes claude. BOM-less UTF-8 to keep Get-Content -Raw clean.
             [System.IO.File]::WriteAllText($sentinel, $HandoffPrompt, [System.Text.UTF8Encoding]::new($false))
+
+            # Create the named workspace file + set restoreWindows BEFORE we
+            # open, so we open the workspace (not the bare folder) and the
+            # window sticks across relaunches.
+            try { Initialize-VSCodeWorkspace } catch { }
 
             Write-Host "Opening VS Code - Claude will continue Phase 2 setup there." -ForegroundColor White
             Write-Host ""
@@ -1858,11 +1635,13 @@ if ($claudeAvailable) {
             Write-Host ""
 
             # `code` (code.cmd) returns immediately after asking the GUI to open
-            # the folder. Wrap in try/catch so a stale shim falls through to the
-            # in-terminal fallback rather than aborting the script.
+            # the workspace. We open the named .code-workspace (not the bare
+            # folder) so it lands in Open Recent as one clear, re-openable entry.
+            # Wrap in try/catch so a stale shim falls through to the in-terminal
+            # fallback rather than aborting the script.
             $codeLaunched = $false
             try {
-                & code $scriptDir | Out-Null
+                & code $workspaceFile | Out-Null
                 if ($LASTEXITCODE -eq 0) { $codeLaunched = $true }
             } catch {
                 Write-Host "  [!] 'code' command failed: $($_.Exception.Message)" -ForegroundColor Yellow

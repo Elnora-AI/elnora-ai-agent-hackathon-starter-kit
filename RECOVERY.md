@@ -44,9 +44,9 @@ When it finishes, re-run the install one-liner.
 **Fix:** something between you and the internet is blocking the install — a
 corporate firewall, a Wi-Fi captive portal, or VPN. Try in this order:
 
-1. Open a browser and confirm you can reach `https://claude.ai`,
-   `https://github.com`, and `https://platform.elnora.ai`. If any are blocked,
-   that's your problem — switch to a personal Wi-Fi or hotspot.
+1. Open a browser and confirm you can reach `https://claude.ai` and
+   `https://github.com`. If any are blocked, that's your problem — switch to a
+   personal Wi-Fi or hotspot.
 2. If you're behind a corporate proxy and you know the URL, tell your shell:
    ```
    export HTTPS_PROXY=http://your-proxy:port
@@ -62,33 +62,7 @@ corporate firewall, a Wi-Fi captive portal, or VPN. Try in this order:
 
 ---
 
-## 4. "Elnora auth fails / `elnora whoami` returns an error"
-
-**Symptom:** `elnora whoami` or `elnora doctor` returns `401 Unauthorized` or
-`403 Forbidden`, or `elnora auth status` says you're not authenticated.
-
-**Fix:** re-authenticate with a fresh key.
-
-```
-elnora auth status
-```
-
-If it reports "not authenticated" (or the wrong account), generate a new key
-and log in again:
-
-1. Visit `https://platform.elnora.ai/settings` → **API Keys** tab.
-2. Click **Create key**, name it after your machine.
-3. Copy the new key (it starts with `elnora_live_`).
-4. Run `elnora auth login --api-key <paste-new-key>` — this saves the key to
-   `~/.elnora/profiles.toml` so every shell picks it up.
-5. Run `elnora whoami` again.
-
-If it still fails with a real key, the network may be blocking
-`https://platform.elnora.ai` — see #3.
-
----
-
-## 5. "GitHub auth fails" (Phase 2 step 6b)
+## 4. "GitHub auth fails" (Phase 2 step 6b)
 
 **Symptom:** Claude is walking you through `gh auth login` and something
 goes wrong — the browser doesn't open, the one-time code expired, or
@@ -124,7 +98,7 @@ where it stopped.
 
 ---
 
-## 6. "GitHub repo creation fails" (Phase 2 step 6c)
+## 5. "GitHub repo creation fails" (Phase 2 step 6c)
 
 **Symptom:** `gh repo create` errors out, or the repo is created but the
 push didn't land on `origin/main`.
@@ -155,7 +129,7 @@ push didn't land on `origin/main`.
 
 ---
 
-## 7. "VS Code opened but Claude never started" (auto-task prompt missed)
+## 6. "VS Code opened but Claude never started" (auto-task prompt missed)
 
 **Symptom:** Phase 1 said `Opening VS Code - Claude will continue Phase 2
 setup there`, your bootstrap terminal exited cleanly, VS Code came up at
@@ -208,7 +182,7 @@ Any of the three gets you to the same place: Claude reading
 
 ---
 
-## 8. "The setup script stopped or half-failed — how do I continue?"
+## 7. "The setup script stopped or half-failed — how do I continue?"
 
 **Symptom:** the script exited part-way through (most often at the **Claude
 Code sign-in step**, the single most common place people stop), or it finished
@@ -234,37 +208,41 @@ flag, which clears the saved progress:
 - macOS: `bash setup-mac.sh --fresh`
 - Windows: `.\setup-windows.ps1 --fresh`
 
+**Lost track of the folder and only remember the install one-liner?** Re-run it
+(`curl … | bash` on macOS, `irm … | iex` on Windows) — it's safe. The installer
+keeps a small registry of the workspaces you've created and, on an interactive
+re-run, lists them and offers to **resume** one instead of silently making a
+second folder. So re-running can't leave you with a pile of half-finished
+copies under slightly different names. Pick the workspace it lists, or choose
+"new" if you genuinely want a separate one. (If a listed folder has since been
+deleted, it asks whether to re-create it there or forget it.)
+
 If the same step fails three times in a row, stop and ask for help. Email or
 share `~/claude-starter-install.log` so someone can see what's going wrong.
 
 ---
 
-## 9. "Windows: claude or elnora launches, but doesn't update with new releases"
+## 8. "Windows: claude launches, but doesn't update with new releases"
 
 **Symptom:** during install you saw a yellow message about User PATH not
-containing `.local\bin` (or `.elnora\bin`), followed by "copying claude.exe
-to WindowsApps" or "copying elnora.exe to WindowsApps."
+containing `.local\bin`, followed by "copying claude.exe to WindowsApps."
 
 **What happened:** the upstream installer puts the exe in
-`%USERPROFILE%\.local\bin` (Claude) or `%USERPROFILE%\.elnora\bin` (Elnora)
-and updates User PATH so a new shell can find it. That PATH update can fail
-to stick — corporate Group Policy reverting User PATH, antivirus blocking
-the registry change, or a non-interactive shell that can't refresh
-environment broadcast. As a fallback, `setup-windows.ps1` **copies** the
-exe into `%LOCALAPPDATA%\Microsoft\WindowsApps` (always in the default user
-PATH on Win10/11) so the tool launches.
+`%USERPROFILE%\.local\bin` and updates User PATH so a new shell can find it.
+That PATH update can fail to stick — corporate Group Policy reverting User
+PATH, antivirus blocking the registry change, or a non-interactive shell that
+can't refresh environment broadcast. As a fallback, `setup-windows.ps1`
+**copies** the exe into `%LOCALAPPDATA%\Microsoft\WindowsApps` (always in the
+default user PATH on Win10/11) so the tool launches.
 
 The trade-off: that copy is **frozen at install time**. The upstream
-auto-update path writes to `.local\bin` / `.elnora\bin`, which the copy
-ignores. So `claude` or `elnora` will keep running the install-time
-version even after upstream releases ship.
+auto-update path writes to `.local\bin`, which the copy ignores. So `claude`
+will keep running the install-time version even after upstream releases ship.
 
-**Fix:** re-run the appropriate installer when you want the latest version:
+**Fix:** re-run the installer when you want the latest version:
 
 - **Claude Code:** `irm https://claude.ai/install.ps1 | iex`
-- **Elnora CLI:** `iwr https://cli.elnora.ai/install.ps1 -UseBasicParsing | iex`
-- **Both at once (also re-attempts everything else):** re-run
-  `setup-windows.ps1` from the kit.
+- **Re-attempt everything else too:** re-run `setup-windows.ps1` from the kit.
 
 **Or fix the underlying PATH issue** so the WindowsApps fallback isn't
 needed at all. Open PowerShell as Administrator and check:
@@ -273,17 +251,17 @@ needed at all. Open PowerShell as Administrator and check:
 [Environment]::GetEnvironmentVariable("Path", "User")
 ```
 
-If `.local\bin` and `.elnora\bin` are missing, add them once:
+If `.local\bin` is missing, add it once:
 
 ```
 $user = [Environment]::GetEnvironmentVariable("Path", "User")
-foreach ($d in @("$env:USERPROFILE\.local\bin", "$env:USERPROFILE\.elnora\bin")) {
-    if ($user -notlike "*$d*") { $user = "$user;$d" }
+$d = "$env:USERPROFILE\.local\bin"
+if ($user -notlike "*$d*") {
+    [Environment]::SetEnvironmentVariable("Path", "$user;$d", "User")
 }
-[Environment]::SetEnvironmentVariable("Path", $user, "User")
 ```
 
-Then close every shell and reopen. If the additions disappear in a new
+Then close every shell and reopen. If the addition disappears in a new
 shell, your machine has a Group Policy revert active — talk to IT or
 keep using the WindowsApps fallback and re-run the installer
 periodically.
