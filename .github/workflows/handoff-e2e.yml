@@ -10,7 +10,10 @@ name: handoff-e2e
 # Required GitHub repository secrets:
 #   ANTHROPIC_API_KEY   - sk-ant-* key. Set a low monthly budget cap on it
 #                         in the Anthropic console so a runaway test can't
-#                         spike the bill.
+#                         spike the bill. Used when agent=claude (default).
+#   OPENAI_API_KEY      - sk-* key. Used when agent=codex: setup installs
+#                         Codex and runs `codex exec` for Phase 2 instead of
+#                         `claude -p`. Same budget-cap advice applies.
 #   PAT_TOKEN_TEST      - GitHub PAT used to exercise the gh auth + repo
 #                         create + push path in headless mode. Each run
 #                         creates a private repo named
@@ -43,18 +46,31 @@ on:
           - both
           - macos
           - windows
+      agent:
+        description: "Which agent performs Phase 2"
+        type: choice
+        default: "claude"
+        options:
+          - claude
+          - codex
 
 permissions:
   contents: read
 
 jobs:
   macos:
-    name: macOS handoff E2E
+    name: macOS handoff E2E (${{ github.event.inputs.agent || 'claude' }})
     if: github.event.inputs.os == 'both' || github.event.inputs.os == 'macos'
     runs-on: macos-14
     timeout-minutes: 25
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Only the key for the selected agent is exposed to the job — a
+      # claude run never sees the OpenAI key and vice versa.
+      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
+      OPENAI_API_KEY: ${{ github.event.inputs.agent == 'codex' && secrets.OPENAI_API_KEY || '' }}
+      # claude | codex — setup-mac.sh installs this agent and routes the
+      # Phase 2 handoff to it (ELNORA_HANDOFF_AGENT defaults to ELNORA_AGENT).
+      ELNORA_AGENT: ${{ github.event.inputs.agent || 'claude' }}
       ELNORA_HANDOFF_MODE: headless
       # PAT used by Claude in step 6 of INSTALL_FOR_AGENTS.md (headless
       # branch). The agent pipes this into `gh auth login --with-token`,
@@ -69,7 +85,7 @@ jobs:
       # (no injection surface — it's not user-controlled). The `-macos`
       # / `-windows` suffix prevents the two jobs racing to create the
       # same repo on the same test account.
-      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-macos
+      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-macos-${{ github.event.inputs.agent || 'claude' }}
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}/handoff-transcript.jsonl
       # Skip VS Code + Obsidian casks. macos-14 runners ship without them, so
       # brew installs them every run for nothing — the test never opens an
@@ -81,19 +97,30 @@ jobs:
 
       - name: Verify required secrets are present
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set"
-            exit 1
+          if [ "$ELNORA_AGENT" = "codex" ]; then
+            if [ -z "$OPENAI_API_KEY" ]; then
+              echo "::error::OPENAI_API_KEY secret is not set (required for agent=codex)"
+              exit 1
+            fi
+            case "$OPENAI_API_KEY" in
+              sk-*) echo "OPENAI_API_KEY shape OK" ;;
+              *) echo "::error::OPENAI_API_KEY does not start with sk-"; exit 1 ;;
+            esac
+          else
+            if [ -z "$ANTHROPIC_API_KEY" ]; then
+              echo "::error::ANTHROPIC_API_KEY secret is not set"
+              exit 1
+            fi
+            # Quick sanity check on the secret shapes — catches a swapped paste.
+            case "$ANTHROPIC_API_KEY" in
+              sk-ant-*) echo "ANTHROPIC_API_KEY shape OK" ;;
+              *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;;
+            esac
           fi
           if [ -z "$ELNORA_HANDOFF_GH_TOKEN" ]; then
             echo "::error::PAT_TOKEN_TEST secret is not set"
             exit 1
           fi
-          # Quick sanity check on the secret shapes — catches a swapped paste.
-          case "$ANTHROPIC_API_KEY" in
-            sk-ant-*) echo "ANTHROPIC_API_KEY shape OK" ;;
-            *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;;
-          esac
           # Both classic (ghp_, gho_, ghu_, ghr_, ghs_) and fine-grained
           # (github_pat_) PAT prefixes are valid; just sanity-check the prefix.
           case "$ELNORA_HANDOFF_GH_TOKEN" in
@@ -250,6 +277,8 @@ jobs:
           s = p.read_text()
           before = len(s)
           s = re.sub(r'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***',     s)
+          s = re.sub(r'sk-(?:proj|svcacct)-[A-Za-z0-9_\-]+', 'sk-***REDACTED***',      s)
+          s = re.sub(r'sk-[A-Za-z0-9_\-]{30,}',           'sk-***REDACTED***',         s)
           s = re.sub(r'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***',         s)
           s = re.sub(r'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***',  s)
           p.write_text(s)
@@ -328,24 +357,27 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: handoff-transcript-macos
+          name: handoff-transcript-macos-${{ github.event.inputs.agent || 'claude' }}
           path: ${{ env.ELNORA_HANDOFF_TRANSCRIPT }}
           if-no-files-found: warn
           retention-days: 7
 
   windows:
-    name: Windows handoff E2E
+    name: Windows handoff E2E (${{ github.event.inputs.agent || 'claude' }})
     if: github.event.inputs.os == 'both' || github.event.inputs.os == 'windows'
     runs-on: windows-2022
     timeout-minutes: 25
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # See macOS job — only the selected agent's key is exposed.
+      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
+      OPENAI_API_KEY: ${{ github.event.inputs.agent == 'codex' && secrets.OPENAI_API_KEY || '' }}
+      ELNORA_AGENT: ${{ github.event.inputs.agent || 'claude' }}
       ELNORA_HANDOFF_MODE: headless
       # See macOS job for why this exists and why it's NOT named GH_TOKEN.
       ELNORA_HANDOFF_GH_TOKEN: ${{ secrets.PAT_TOKEN_TEST }}
       # See macOS job for the rationale on why repo name includes the
       # OS suffix — the two jobs would otherwise race for the same name.
-      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-windows
+      ELNORA_HANDOFF_REPO_NAME: elnora-handoff-ci-${{ github.run_id }}-${{ github.run_attempt }}-windows-${{ github.event.inputs.agent || 'claude' }}
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}\handoff-transcript.jsonl
       # Same rationale as install-smoke-test.yml — windows-2022 has no winget.
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
@@ -355,16 +387,27 @@ jobs:
       - name: Verify required secrets are present
         shell: pwsh
         run: |
-          if (-not $env:ANTHROPIC_API_KEY) {
-            Write-Host "::error::ANTHROPIC_API_KEY secret is not set"
-            exit 1
+          if ($env:ELNORA_AGENT -eq "codex") {
+            if (-not $env:OPENAI_API_KEY) {
+              Write-Host "::error::OPENAI_API_KEY secret is not set (required for agent=codex)"
+              exit 1
+            }
+            if ($env:OPENAI_API_KEY -notlike "sk-*") {
+              Write-Host "::error::OPENAI_API_KEY does not start with sk-"
+              exit 1
+            }
+          } else {
+            if (-not $env:ANTHROPIC_API_KEY) {
+              Write-Host "::error::ANTHROPIC_API_KEY secret is not set"
+              exit 1
+            }
+            if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*") {
+              Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"
+              exit 1
+            }
           }
           if (-not $env:ELNORA_HANDOFF_GH_TOKEN) {
             Write-Host "::error::PAT_TOKEN_TEST secret is not set"
-            exit 1
-          }
-          if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*") {
-            Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"
             exit 1
           }
           $patOK = $env:ELNORA_HANDOFF_GH_TOKEN -match '^(ghp_|gho_|ghu_|ghr_|ghs_|github_pat_)'
@@ -521,6 +564,8 @@ jobs:
           $s = Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Raw
           $before = $s.Length
           $s = [regex]::Replace($s, 'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***')
+          $s = [regex]::Replace($s, 'sk-(?:proj|svcacct)-[A-Za-z0-9_\-]+', 'sk-***REDACTED***')
+          $s = [regex]::Replace($s, 'sk-[A-Za-z0-9_\-]{30,}',           'sk-***REDACTED***')
           $s = [regex]::Replace($s, 'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***')
           $s = [regex]::Replace($s, 'github_pat_[A-Za-z0-9_]{20,}',     'github_pat_***REDACTED***')
           Set-Content -Path $env:ELNORA_HANDOFF_TRANSCRIPT -Value $s -NoNewline
@@ -600,7 +645,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: handoff-transcript-windows
+          name: handoff-transcript-windows-${{ github.event.inputs.agent || 'claude' }}
           path: ${{ env.ELNORA_HANDOFF_TRANSCRIPT }}
           if-no-files-found: warn
           retention-days: 7

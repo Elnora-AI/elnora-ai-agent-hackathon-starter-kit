@@ -358,11 +358,16 @@ test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
 ### 1. Read the install log
 
 ```
-grep -E "FAILED:|^error:" ~/claude-starter-install.log || echo "No FAILED markers"
-tail -30 ~/claude-starter-install.log
+grep -cE "FAILED:|^error:" ~/claude-starter-install.log; tail -30 ~/claude-starter-install.log
 ```
 
-(On Windows: `Select-String -Pattern "FAILED:|^error:" $env:USERPROFILE\claude-starter-install.log` then `Get-Content $env:USERPROFILE\claude-starter-install.log -Tail 30`.)
+The first number printed is the failure count — `0` means clean; anything
+higher means failures to triage. Run it exactly as written (one line,
+semicolon-joined). Don't append `|| echo ...` / `&& ...` fallbacks: in CI
+harnesses the chained form has returned a bare "Exit code 1" with no
+output, which costs retry turns for nothing.
+
+(On Windows: `(Select-String -Pattern "FAILED:|^error:" $env:USERPROFILE\claude-starter-install.log | Measure-Object).Count` then `Get-Content $env:USERPROFILE\claude-starter-install.log -Tail 30`.)
 
 > **Do NOT use the Read tool on the install log, and do NOT `tail -100`
 > the whole thing either.** On macOS the log carries Homebrew bottle-pour
@@ -1357,8 +1362,11 @@ If `docs/getting-started.md` doesn't contain that pattern (file was
 restructured), skip — don't invent a fix.
 
 **`README.md`** — replace wholesale with a minimal user-facing version.
-Use the `Write` tool with `file_path` = `README.md` and exactly this
-content (preserve all newlines and leading hashes verbatim):
+First `Read` the existing `README.md` (the `Write` tool refuses to
+overwrite a file it hasn't read this session — skipping the Read costs
+you an error + retry turn), then use the `Write` tool with
+`file_path` = `README.md` and exactly this content (preserve all
+newlines and leading hashes verbatim):
 
 ````markdown
 # My Agent Workspace
