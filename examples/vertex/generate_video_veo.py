@@ -32,6 +32,12 @@ def main() -> int:
     if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
         print("Set GOOGLE_CLOUD_PROJECT to your own GCP project ID.", file=sys.stderr)
         return 2
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip()
+    if not location or location.lower() == "global":
+        print("Veo needs a REGIONAL location, not 'global'. Set GOOGLE_CLOUD_LOCATION "
+              "to a region like us-central1 (see docs/google-cloud-vertex-setup.md).",
+              file=sys.stderr)
+        return 2
 
     try:
         from google import genai

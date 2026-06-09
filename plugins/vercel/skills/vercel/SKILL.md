@@ -57,21 +57,6 @@ Use this to route to the correct reference file:
 - **REST API endpoints** → `references/rest-api-reference.md`
 - **Complete CLI command/flag reference** → `references/cli-complete-reference.md`
 
-## Comprehensive API & CLI Reference (Vault)
-
-For the full authoritative reference (49 CLI commands, 250+ REST API endpoints, TypeScript SDK, Terraform provider, `vercel.json` config, platform limits), load the vault doc:
-
-**Path**: `09-engineering/integrations/vercel-cli-and-rest-api-reference.md`
-
-Use the knowledge-base plugin to read this when you need to:
-- Make direct REST API calls (`vercel api` or `curl`)
-- Use the `@vercel/sdk` TypeScript SDK
-- Look up exact endpoint paths, methods, and parameters
-- Check platform limits or `vercel.json` configuration options
-- Build new automation that needs specific API endpoints
-
-The reference files in this plugin cover common workflows. The vault doc is the complete source for everything Vercel exposes.
-
 ## Anti-Patterns
 
 - **Wrong link type in monorepos with multiple projects**: `vercel link` creates `project.json`, which only tracks one project. Use `vercel link --repo` instead. When things break, check `.vercel/` first.

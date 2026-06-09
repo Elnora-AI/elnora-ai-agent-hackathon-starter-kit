@@ -20,6 +20,17 @@ That's it. Plugins add new skills, agents, and commands to Claude.
 
 These marketplaces are already configured in your `.claude/settings.json`:
 
+### Bundled: Elnora Starter Plugins (`elnora-starter-plugins`)
+
+**Source**: local `directory: ./plugins` — shipped inside this repo, no clone needed
+**Trust level**: Highest — bundled with the starter kit; auto-registers when you trust the folder
+
+| Plugin | What it gives you | Best for |
+|--------|-------------------|----------|
+| **vercel** ⭐ | `/vercel:deploy`, `/vercel:setup`, `/vercel:logs`, `/vercel:integration`, plus **v0** (`/vercel:v0`, AI app builder) | Deploying apps and generating UIs |
+
+⭐ = enabled by default in this starter kit (see `.claude/settings.json`).
+
 ### 1. Anthropic Official (`claude-code-plugins`)
 
 **Source**: github.com/anthropics/claude-code
@@ -177,8 +188,9 @@ A focused set of high-quality agent skills.
 
 ## What's enabled out of the box
 
-The kit ships with three plugins already turned on in `.claude/settings.json`:
+The kit ships with four plugins already turned on in `.claude/settings.json`:
 
+- **vercel** (from `elnora-starter-plugins`, bundled) — `/vercel:deploy`, `/vercel:v0`, and more
 - **commit-commands** (from `claude-code-plugins`) — `/commit`, `/commit-push-pr`
 - **context7** (from `claude-plugins-official`) — current library docs via MCP
 - **claude-md-management** (from `claude-plugins-official`) — keeps `CLAUDE.md` tidy

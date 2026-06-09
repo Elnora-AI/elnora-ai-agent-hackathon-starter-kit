@@ -68,7 +68,7 @@ corporate firewall, a Wi-Fi captive portal, or VPN. Try in this order:
 
 ---
 
-## 4. "GitHub auth fails" (Phase 2 step 6b)
+## 4. "GitHub auth fails" (Phase 2 step 3b)
 
 **Symptom:** Claude is walking you through `gh auth login` and something
 goes wrong — the browser doesn't open, the one-time code expired, or
@@ -104,7 +104,7 @@ where it stopped.
 
 ---
 
-## 5. "GitHub repo creation fails" (Phase 2 step 6c)
+## 5. "GitHub repo creation fails" (Phase 2 step 3c)
 
 **Symptom:** `gh repo create` errors out, or the repo is created but the
 push didn't land on `origin/main`.

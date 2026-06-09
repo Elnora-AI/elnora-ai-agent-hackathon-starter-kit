@@ -66,6 +66,7 @@ faster loop. Paste your keys into `.env`, then:
 ```bash
 # Mac:
 ELNORA_HANDOFF_MODE=headless \
+ELNORA_HANDOFF_LOCAL_BYPASS=1 \
 ELNORA_HANDOFF_TRANSCRIPT="$PWD/handoff-transcript.jsonl" \
 ANTHROPIC_API_KEY="$(grep ^ANTHROPIC_API_KEY= .env | cut -d= -f2-)" \
 bash setup-mac.sh
@@ -76,6 +77,7 @@ tests/handoff/assert.sh "$PWD" "$PWD/handoff-transcript.jsonl"
 ```powershell
 # Windows:
 $env:ELNORA_HANDOFF_MODE = "headless"
+$env:ELNORA_HANDOFF_LOCAL_BYPASS = "1"
 $env:ELNORA_HANDOFF_TRANSCRIPT = "$PWD\handoff-transcript.jsonl"
 # Source ANTHROPIC_API_KEY from .env or paste it
 .\setup-windows.ps1
@@ -85,6 +87,11 @@ $env:ELNORA_HANDOFF_TRANSCRIPT = "$PWD\handoff-transcript.jsonl"
 > ⚠️ Running locally re-runs the full Phase 1 install path too. If you've
 > already got everything installed it's a no-op; otherwise it'll install
 > tools on your machine.
+>
+> `ELNORA_HANDOFF_LOCAL_BYPASS=1` is required outside CI: headless mode hands
+> off to the agent with `bypassPermissions`, so the setup scripts refuse to run
+> it without this explicit opt-in (they print a 5-second abort warning, then
+> proceed). Without it — and without CI markers — the script exits 2.
 
 ## How the handoff knows it's in test mode
 
@@ -93,12 +100,14 @@ The contract is two env vars:
 - `ELNORA_HANDOFF_MODE=headless` — switches `setup-mac.sh` / `setup-windows.ps1`
   from `exec claude "<prompt>"` (interactive REPL) to `claude -p "<same
   prompt>" --permission-mode bypassPermissions --output-format stream-json
-  --verbose --max-turns 50` (one-shot, captured to transcript).
+  --verbose --max-turns 80` (one-shot, captured to transcript). For the Codex
+  agent the equivalent one-shot path is `codex exec` instead of `claude -p`.
 - `ANTHROPIC_API_KEY` — required for Claude Code to skip browser OAuth.
 
-The handoff prompt is **byte-for-byte identical** between production and
-headless mode — defined once in each setup script. Divergence there is
-the bug this test is supposed to catch.
+The handoff prompt is the same string between production and headless mode —
+defined once in each setup script. Divergence there is the bug this test is
+supposed to catch. (Nothing currently diffs the two prompt strings in an
+assertion, so keep them in sync by hand when editing either path.)
 
 `INSTALL_FOR_AGENTS.md` has a "Non-interactive / test mode" section that
 tells Claude what to do when `ELNORA_HANDOFF_MODE=headless` is set: pull
