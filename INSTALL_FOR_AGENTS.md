@@ -90,15 +90,16 @@ the workflow files. They have no effect on a normal Claude Code session.
 
 | Variable | Set to | Effect | Used by |
 |----------|--------|--------|---------|
-| `ELNORA_SKIP_OPTIONAL_INSTALLS` | `1` | Skip optional installs (VS Code, Obsidian, etc.) for a lean/headless run | `install-smoke-test.yml`; useful for any headless run |
+| `ELNORA_SKIP_OPTIONAL_INSTALLS` | `1` | Skip optional installs (VS Code, Obsidian, etc.) for a lean/headless run | `agent-selection-test.yml`, `bootstrap-e2e.yml`, `handoff-e2e.yml`; useful for any lean/headless run |
 | `ELNORA_SKIP_HANDOFF` | `1` | Print the would-be Phase 2 handoff prompt and exit instead of starting an agent session | `install-smoke-test.yml` |
-| `ELNORA_HANDOFF_MODE` | `headless` | Run the Phase 2 handoff non-interactively (`claude -p` / `codex exec`) instead of an interactive session | `handoff-e2e.yml` |
+| `ELNORA_HANDOFF_MODE` | `headless` | Run the Phase 2 handoff non-interactively (`claude -p` / `codex exec`) instead of an interactive session | `handoff-e2e.yml`, `bootstrap-e2e.yml` |
 
 (`ANTHROPIC_API_KEY` — the one genuine secret — is injected into `handoff-e2e`
 from GitHub Secrets, not from `.env`. See `.env.template`.)
 
 If your environment has `ELNORA_HANDOFF_MODE=headless` set, you are running
-inside the `handoff-e2e` test workflow. There is no human to talk to. In that
+inside a headless CI test workflow (`handoff-e2e` or `bootstrap-e2e`). There
+is no human to talk to. In that
 mode, follow these adjustments:
 
 - **Skip every "ask the user" step.** If a step says "ask the user X",
@@ -352,7 +353,7 @@ test -f .elnora-handoff-resume.json && echo "RESUME" || echo "FRESH"
      This must happen before the step 9 cleanup commit so the marker
      doesn't end up in git history.
 
-  Steps 4–6 then run as normal.
+  Steps 4 onward then run as normal.
 
 ### 1. Read the install log
 
@@ -508,9 +509,9 @@ the same step, before any git history exists.
    the user already has a repo with this name on their GitHub account,
    we cannot just `gh repo create` — and we cannot rename the local
    folder in-session either. Claude Code, the MCP servers in
-   `.mcp.json` (Chrome DevTools, Context7, grep), the plugins under
-   `.claude/plugins/`, the hook scripts under `.claude/hooks/`, and any
-   in-flight tool processes are all alive INSIDE this directory. A
+   `.mcp.json` (Chrome DevTools, Context7, grep), the bundled plugins
+   under `plugins/`, and any in-flight tool processes are all alive
+   INSIDE this directory. A
    live `mv` would (a) silently break MCP cwds and plugin paths,
    (b) outright fail on Windows where the OS holds a directory handle
    for the running process. Either way, "everything dies."
@@ -626,8 +627,9 @@ the same step, before any git history exists.
    > CI repo name (`$ELNORA_HANDOFF_REPO_NAME`) is collision-free per
    > run by construction. Set
    > `WORKSPACE_NAME="$ELNORA_HANDOFF_REPO_NAME"` and proceed straight
-   > to step 3. The resume flow is exercised by a dedicated
-   > `handoff-resume-e2e` job in CI — not by this branch.
+   > to step 3. The headless E2E jobs skip collision recovery by
+   > construction, so the resume flow is not currently exercised by CI
+   > — verify it manually.
 
 3. Initialize the local repo on `main`. If `.git/` already exists (e.g.
    the user manually `git clone`'d the kit instead of using the
@@ -947,7 +949,9 @@ short sentence so they can see it working.
 
 2. **The MCP can see your real tabs.** Call
    `mcp__chrome-devtools__list_pages`. (You may need to load the tool
-   first via `ToolSearch` with `select:mcp__chrome-devtools__list_pages`.)
+   first via `ToolSearch` with `select:mcp__chrome-devtools__list_pages`.
+   Codex: skip the `ToolSearch` step — your chrome-devtools MCP tool is
+   already available once it's in `~/.codex/config.toml`.)
 
    **Gate**: the result lists at least one tab with the URL of
    something the user actually has open. Read one of the URLs back to
@@ -1058,15 +1062,23 @@ before `vercel --prod`.**
 #### 6d. Set up v0
 
 1. Human step: get an API key at <https://v0.app/settings/keys>.
-2. Store it as a secret in `.env` (gitignored) — never in code or chat:
+2. Store it as a secret in `.env` (gitignored) — never in code or chat.
+   Capture the real key in a shell variable first, then append it: a bare
+   `>> .env` only writes the file, it does **not** set `$V0_API_KEY` in your
+   shell, and the verify call below needs it:
    ```bash
-   echo 'V0_API_KEY=their-key' >> .env
+   V0_API_KEY="<paste the user's key>"
+   printf 'V0_API_KEY=%s\n' "$V0_API_KEY" >> .env
    ```
-3. Verify:
+3. Verify (reuses `$V0_API_KEY` from step 2 — if you run this in a fresh
+   shell, `export V0_API_KEY=...` or `set -a; . ./.env; set +a` first, or the
+   bearer is empty):
    ```bash
    curl -s https://api.v0.dev/v1/user -H "Authorization: Bearer $V0_API_KEY" | head
    ```
-   JSON user object = working. `401` = bad key or billing/credits not enabled.
+   JSON user object = working. `401` = the key is empty/unset (most common —
+   confirm `$V0_API_KEY` is actually set in this shell), wrong, or
+   billing/credits not enabled.
 4. From here the **`v0` skill** drives it (`/vercel:v0`). Fast path to a new
    app: `pnpm create v0-sdk-app@latest my-app`. Full reference lives in the
    skill at `plugins/vercel/skills/v0/SKILL.md`.
@@ -1187,6 +1199,12 @@ first in case it's already there):
 flow can create the project, enable the APIs, and run the browser login in one
 shot — and if the user already did step 7, they have a gcloud project and login
 ready, so this is quick.
+
+> **Prerequisite:** `gws auth setup` requires the `gcloud` CLI. If the user
+> declined step 7 (so `gcloud` isn't installed), either install `gcloud`
+> first (see [`docs/google-cloud-vertex-setup.md`](docs/google-cloud-vertex-setup.md))
+> or follow the gws README's manual OAuth-credential path in the Google
+> Cloud Console. Without one of those, `gws auth setup` fails.
 
 ```
 gws auth setup     # creates/links a Cloud project, enables APIs, opens browser login
@@ -1324,7 +1342,7 @@ heredocs, or sed — `Edit` is the auditable interface).
 If the admonition isn't found verbatim (someone may have edited it), stop
 and surface the discrepancy — do not invent a workaround.
 
-**`docs/getting-started.md`** — line ~130 references `RECOVERY.md`. Use
+**`docs/getting-started.md`** — around line 155 references `RECOVERY.md`. Use
 `Edit` with:
 
 - `old_string`: ``If any step fails, see [`../RECOVERY.md`](../RECOVERY.md) → "GitHub auth``
