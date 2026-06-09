@@ -51,6 +51,33 @@ The script downloads installers from `raw.githubusercontent.com`,
 `claude.ai`, and `cli.elnora.ai` over HTTPS without separate checksum
 verification. Running it means trusting those sources.
 
+## If it stops, just run it again
+
+The script stopped, you closed the terminal, or sign-in didn't go through?
+**Just run it again** with the command below. It resumes right where it left
+off — already-installed tools are skipped in seconds and you land back at the
+step that stopped you. Nothing is lost or repeated.
+
+```bash
+# macOS
+bash setup-mac.sh
+```
+
+```powershell
+# Windows
+.\setup-windows.ps1
+```
+
+When it restarts you'll see `Resuming where a previous run left off` at the
+top, so you know it's continuing — not starting over.
+
+The most common stopping point is the **Claude sign-in** step. If that's where
+you are, make sure you have an active [Claude Pro/Max](https://claude.com/upgrade)
+account, then re-run and complete the login when the browser opens.
+
+Want a completely clean run instead? Add `--fresh` to start from scratch:
+`bash setup-mac.sh --fresh` (macOS) or `.\setup-windows.ps1 --fresh` (Windows).
+
 ## What happens
 
 1. **Phase 1 install (~5–10 min):** prompts for a name for your workspace

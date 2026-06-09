@@ -35,6 +35,47 @@ try { Start-Transcript -Path $LogFile -Force | Out-Null } catch { }
 
 $FailedSteps = New-Object System.Collections.ArrayList
 
+# ------------------------------------------------------------
+# Resume / checkpoint state
+# ------------------------------------------------------------
+# This script is safe to run as many times as you like - already-installed
+# tools are detected and skipped. The checkpoint file below goes one step
+# further: it remembers one-time actions that already finished (e.g. the
+# Elnora CLI download) so a re-run does not repeat them, and it lets the
+# script announce "resuming" so a re-run never feels like starting over.
+#
+# Why this matters: the single most common place people stop is the Claude
+# Code sign-in step. If that happens - or the script is interrupted anywhere
+# else - just run it again. It picks up right where you left off.
+#
+#   Resume (default):   .\setup-windows.ps1
+#   Start over clean:   .\setup-windows.ps1 --fresh
+#
+# ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
+# local re-run of the smoke test starts from a clean slate).
+$SetupStateFile = if ($env:ELNORA_SETUP_STATE_FILE) { $env:ELNORA_SETUP_STATE_FILE } else { Join-Path $env:USERPROFILE ".claude-starter-setup-state" }
+if ($args -contains "--fresh" -or $args -contains "--restart") {
+    Remove-Item -LiteralPath $SetupStateFile -Force -ErrorAction SilentlyContinue
+    Write-Host "  (--fresh: cleared saved progress - starting from the beginning.)" -ForegroundColor Gray
+}
+if (-not (Test-Path -LiteralPath $SetupStateFile)) {
+    try { New-Item -ItemType File -Path $SetupStateFile -Force -ErrorAction Stop | Out-Null } catch { }
+}
+
+# Test-Checkpoint <name> -> $true if this checkpoint was reached on a prior run.
+# Set-Checkpoint  <name> -> record a checkpoint (idempotent; one name per line).
+function Test-Checkpoint {
+    param([string]$Name)
+    if (-not (Test-Path -LiteralPath $SetupStateFile)) { return $false }
+    return @(Get-Content -LiteralPath $SetupStateFile -ErrorAction SilentlyContinue) -contains $Name
+}
+function Set-Checkpoint {
+    param([string]$Name)
+    if (-not (Test-Checkpoint $Name)) {
+        try { Add-Content -LiteralPath $SetupStateFile -Value $Name -ErrorAction SilentlyContinue } catch { }
+    }
+}
+
 function Update-SessionPath {
     # Reload PATH from the registry so this session sees binaries added by a
     # just-run installer. Without this, `winget install Git.Git` succeeds but
@@ -411,6 +452,15 @@ Write-Host "===========================================" -ForegroundColor Cyan
 Write-Host "  Log: $LogFile" -ForegroundColor Gray
 Write-Host ""
 
+# If we have saved progress from an earlier run, say so up front - so the
+# "already installed / Skipping" lines below clearly read as "resuming",
+# not "starting over".
+if ((Test-Path -LiteralPath $SetupStateFile) -and ((Get-Item -LiteralPath $SetupStateFile -ErrorAction SilentlyContinue).Length -gt 0)) {
+    Write-Host "  Resuming where a previous run left off - finished steps are skipped." -ForegroundColor Gray
+    Write-Host "  (To start over from scratch instead:  .\setup-windows.ps1 --fresh)" -ForegroundColor Gray
+    Write-Host ""
+}
+
 # --- winget progress-bar noise filter ---
 # winget redraws an ASCII progress bar 100+ times per package (downloading,
 # verifying, installing). When 2>&1 captures stderr into the line-buffered
@@ -655,12 +705,24 @@ if (-not $elnoraIsInstalled) {
     Write-Host "  Next: paste your API key when prompted in step [3/3] of the auth section below," -ForegroundColor Gray
     Write-Host "        or run 'elnora auth login --api-key <key>' later. Get a key at" -ForegroundColor Gray
     Write-Host "        https://platform.elnora.ai/settings (API Keys tab)." -ForegroundColor Gray
+    if (Test-Path $elnoraExe) { Set-Checkpoint "elnora-cli" }
+} elseif ((Test-Checkpoint "elnora-cli") -and (-not $env:ELNORA_CLI_VERSION)) {
+    # Resume fast-path: the installer's download/refresh is the only step here
+    # that does real network work even when elnora is already present. If we
+    # already refreshed it during an earlier run of THIS setup, skip the
+    # re-download so a resume after the Claude sign-in stop is near-instant.
+    # (Skipped when a version is pinned - an explicit pin should always re-run.)
+    $currentElnoraVersion = (& elnora --version 2>$null)
+    if (-not $currentElnoraVersion) { $currentElnoraVersion = "unknown" }
+    Write-Host "[2/9] Elnora CLI already installed ($currentElnoraVersion) and refreshed earlier this setup - skipping re-download." -ForegroundColor Gray
+    Update-SessionPath
 } else {
     $currentElnoraVersion = (& elnora --version 2>$null)
     if (-not $currentElnoraVersion) { $currentElnoraVersion = "unknown" }
     Write-Host "[2/9] Elnora CLI already installed ($currentElnoraVersion) - refreshing to $elnoraInstallLabel..." -ForegroundColor Green
     Invoke-Step "Elnora CLI upgrade" { powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $elnoraInstallerCommand } -SuppressPattern $elnoraNoisePattern
     Update-SessionPath
+    Set-Checkpoint "elnora-cli"
 }
 
 # --- [3/9] Node.js (pinned to >=22 for Mac/Windows parity) ---
@@ -1292,6 +1354,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
             $emailMatch = [regex]::Match($claudeStatus, '"email"\s*:\s*"([^"]+)"')
             $email = if ($emailMatch.Success) { $emailMatch.Groups[1].Value } else { "unknown" }
             Write-Host "      [OK] Already logged in as $email"
+            Set-Checkpoint "auth-claude"
         } else {
             Write-Host "      Not logged in. A browser will open so you can sign in."
             Write-Host "      [Y]es / [s]kip+continue without Claude / [q]uit script"
@@ -1301,16 +1364,33 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                 "^[Yy]" {
                     claude auth login --claudeai
                     if ($LASTEXITCODE -ne 0) {
-                        Write-Host "      [FAIL] Login didn't complete. Re-run when ready:  .\setup-windows.ps1"
+                        Write-Host "      [FAIL] Claude sign-in didn't complete."
+                        Write-Host ""
+                        Write-Host "         This is the most common place setup stops. Nothing is lost."
+                        Write-Host "         When you're ready, run the SAME command again:"
+                        Write-Host ""
+                        Write-Host "             .\setup-windows.ps1"
+                        Write-Host ""
+                        Write-Host "         It resumes right here at the Claude sign-in step - every"
+                        Write-Host "         tool above is already installed and is skipped instantly."
                         exit 1
                     }
                     $recheck = claude auth status --json 2>$null
                     if ($recheck -notmatch '"loggedIn"\s*:\s*true') {
-                        Write-Host "      [FAIL] Login flow returned but auth status still shows not logged in."
-                        Write-Host "             Run manually:  claude auth login --claudeai"
+                        Write-Host "      [FAIL] Login flow returned but you are still not signed in."
+                        Write-Host ""
+                        Write-Host "         This is the most common place setup stops. Nothing is lost."
+                        Write-Host "         When you're ready, run the SAME command again:"
+                        Write-Host ""
+                        Write-Host "             .\setup-windows.ps1"
+                        Write-Host ""
+                        Write-Host "         It resumes right here at the Claude sign-in step - every"
+                        Write-Host "         tool above is already installed and is skipped instantly."
+                        Write-Host "         To try the login by hand first:  claude auth login --claudeai"
                         exit 1
                     }
                     Write-Host "      [OK] Logged in."
+                    Set-Checkpoint "auth-claude"
                 }
                 "^[Ss]" {
                     # Use the live working directory for the resume hint -- the
@@ -1381,6 +1461,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
             $ghUser = (gh api user --jq .login 2>$null)
             if ([string]::IsNullOrWhiteSpace($ghUser)) { $ghUser = "unknown" }
             Write-Host "      [OK] Already logged in as $ghUser"
+            Set-Checkpoint "auth-github"
         } else {
             Write-Host "      Not logged in. Phase 2 needs this to create your starter repo."
             Write-Host "      [Y]es / [s]kip (Phase 2 will prompt you again later)"
@@ -1391,6 +1472,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                     gh auth login --web --hostname github.com --git-protocol https
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "      [OK] Logged in."
+                        Set-Checkpoint "auth-github"
                     } else {
                         Write-Host "      [WARN] Login didn't complete. Phase 2 will prompt you."
                     }
@@ -1411,6 +1493,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
         $elnoraStatus = elnora auth status 2>$null
         if ($elnoraStatus -match '"authenticated"\s*:\s*true') {
             Write-Host "      [OK] Already authenticated."
+            Set-Checkpoint "auth-elnora"
         } else {
             Write-Host "      Not authenticated. Elnora uses an API key (not browser OAuth)."
             Write-Host "      Get one at:  https://platform.elnora.ai/settings (API Keys tab)"
@@ -1436,6 +1519,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                     $elnoraStatusAfter = elnora auth status 2>$null
                     if ($elnoraStatusAfter -match '"authenticated"\s*:\s*true') {
                         Write-Host "      [OK] Saved."
+                        Set-Checkpoint "auth-elnora"
                     } else {
                         Write-Host "      [SKIP] Not authenticated. Try manually:  elnora auth login"
                     }

@@ -208,18 +208,31 @@ Any of the three gets you to the same place: Claude reading
 
 ---
 
-## 8. "The setup script half-failed"
+## 8. "The setup script stopped or half-failed — how do I continue?"
 
-**Symptom:** the script finished but printed `⚠ N step(s) failed — remediation
-below`. Some tools are installed, others aren't.
+**Symptom:** the script exited part-way through (most often at the **Claude
+Code sign-in step**, the single most common place people stop), or it finished
+but printed `⚠ N step(s) failed — remediation below`.
 
-**Fix:** the install scripts are **idempotent** — re-running them only
-re-attempts the failed steps and skips what's already installed. So:
+**Fix:** just run it again. The script **resumes where it left off** — it
+remembers your progress in a small checkpoint file, so already-installed tools
+and finished steps are skipped instantly, and you land right back at the step
+that stopped you. Nothing you already did is repeated or lost.
 
-1. Read the remediation hints the script printed for each failed step.
-2. Fix the underlying issue (most often: a system dialog you missed, or a
-   network timeout).
-3. Re-run the install one-liner — same command you started with.
+1. If a step errored, read the remediation hints it printed and fix the
+   underlying issue (most often: a system dialog you missed, a network
+   timeout, or a Claude sign-in you didn't complete).
+2. Re-run the **same command you started with**:
+   - macOS: `bash setup-mac.sh`
+   - Windows: `.\setup-windows.ps1`
+   When it reaches the top it prints `Resuming where a previous run left
+   off` so you know it's continuing, not starting over.
+
+**Want a completely clean run instead?** Start from scratch with the `--fresh`
+flag, which clears the saved progress:
+
+- macOS: `bash setup-mac.sh --fresh`
+- Windows: `.\setup-windows.ps1 --fresh`
 
 If the same step fails three times in a row, stop and ask for help. Email or
 share `~/claude-starter-install.log` so someone can see what's going wrong.
