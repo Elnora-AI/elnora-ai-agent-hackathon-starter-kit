@@ -1167,11 +1167,25 @@ else
     echo ""
 fi
 
+# Resolve the handoff agent's binary, display name, and first-run auth note.
+# Done before the closing banners below so they name the agent the user
+# actually chose instead of hardcoding "Claude".
+case "$ELNORA_HANDOFF_AGENT" in
+    codex)
+        AGENT_BIN="codex"; AGENT_NAME="Codex"
+        AUTH_NOTE="On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
+        ;;
+    *)
+        AGENT_BIN="claude"; AGENT_NAME="Claude Code"
+        AUTH_NOTE="On first run, your browser will open to log into your Claude Pro/Max account."
+        ;;
+esac
+
 echo "==========================================="
 echo "  Quick PATH note"
 echo "==========================================="
 echo ""
-echo "  The 'claude' command is at ~/.local/bin/."
+echo "  The '$AGENT_BIN' command is at ~/.local/bin/."
 echo "  - In any terminal opened AFTER this install: works automatically."
 echo "  - In a terminal opened BEFORE this install (rare):"
 echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
@@ -1179,7 +1193,7 @@ echo "    or just open a fresh terminal window."
 echo ""
 
 echo "==========================================="
-echo "  Phase 1 complete - handing off to Claude"
+echo "  Phase 1 complete - handing off to $AGENT_NAME"
 echo "==========================================="
 echo ""
 
@@ -1206,17 +1220,19 @@ fi
 # Codex maps Claude tool names to its own equivalents).
 HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log."
 
-# Resolve the handoff agent's binary, display name, and first-run auth note.
-case "$ELNORA_HANDOFF_AGENT" in
-    codex)
-        AGENT_BIN="codex"; AGENT_NAME="Codex"
-        AUTH_NOTE="On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
-        ;;
-    *)
-        AGENT_BIN="claude"; AGENT_NAME="Claude Code"
-        AUTH_NOTE="On first run, your browser will open to log into your Claude Pro/Max account."
-        ;;
-esac
+# Replace this shell with the interactive agent, reattached to the real
+# terminal. The whole script runs under `exec > >(tee "$LOG_FILE")` (top of
+# file), so stdout here is a pipe to tee, not a TTY -- and when the user ran
+# `curl ... | bash`, stdin is the exhausted curl pipe. Codex's TUI refuses
+# to start on either ("Error: stdout is not a terminal"), so reattach all
+# three fds to /dev/tty when one is available. The agent's session output
+# intentionally stops landing in $LOG_FILE from this point on.
+exec_handoff_agent() {
+    if ( : </dev/tty >/dev/tty ) 2>/dev/null; then
+        exec "$AGENT_BIN" "$HANDOFF_PROMPT" </dev/tty >/dev/tty 2>&1
+    fi
+    exec "$AGENT_BIN" "$HANDOFF_PROMPT"
+}
 
 if command -v "$AGENT_BIN" >/dev/null 2>&1; then
     if [ "${ELNORA_SKIP_HANDOFF:-}" = "1" ]; then
@@ -1487,7 +1503,7 @@ PY
         echo "Already inside VS Code - starting $AGENT_NAME in this terminal."
         echo "$AUTH_NOTE"
         echo ""
-        exec "$AGENT_BIN" "$HANDOFF_PROMPT"
+        exec_handoff_agent
     fi
 
     # The VS Code sentinel handoff drives `claude` specifically (run-handoff.sh
@@ -1549,9 +1565,9 @@ PY
     echo "$AUTH_NOTE"
     echo ""
     # exec replaces this shell - the agent takes over with the initial prompt
-    # loaded. If exec fails (no TTY, broken install), the lines below print as
-    # a fallback.
-    exec "$AGENT_BIN" "$HANDOFF_PROMPT"
+    # loaded (on /dev/tty, see exec_handoff_agent). If exec fails (broken
+    # install), the lines below print as a fallback.
+    exec_handoff_agent
 fi
 
 # Fallback: handoff agent not on PATH (its install failed) - show the manual
