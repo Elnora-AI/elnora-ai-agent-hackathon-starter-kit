@@ -1225,9 +1225,26 @@ HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install jus
 # file), so stdout here is a pipe to tee, not a TTY -- and when the user ran
 # `curl ... | bash`, stdin is the exhausted curl pipe. Codex's TUI refuses
 # to start on either ("Error: stdout is not a terminal"), so reattach all
-# three fds to /dev/tty when one is available. The agent's session output
-# intentionally stops landing in $LOG_FILE from this point on.
+# three fds to the terminal. The agent's session output intentionally stops
+# landing in $LOG_FILE from this point on.
+#
+# Reattach to the REAL pty device (/dev/ttysNNN on macOS, /dev/pts/N on
+# Linux), NOT the /dev/tty alias: on macOS, kqueue cannot poll an fd opened
+# from /dev/tty, so Codex's TUI panics ("reader source not set" in
+# crossterm event/read.rs) on the first input event -- including the
+# terminal's own replies to its startup queries, i.e. instantly. Claude
+# (Node) tolerates /dev/tty, so it stays as the fallback for the rare case
+# where `ps` can't name the controlling terminal.
 exec_handoff_agent() {
+    local tty_name tty_dev=""
+    tty_name="$(ps -o tty= -p $$ 2>/dev/null | tr -d '[:space:]')"
+    case "$tty_name" in
+        ""|"?"|"??") ;;  # no controlling terminal
+        *) tty_dev="/dev/$tty_name" ;;
+    esac
+    if [ -n "$tty_dev" ] && [ -c "$tty_dev" ] && ( : <"$tty_dev" >"$tty_dev" ) 2>/dev/null; then
+        exec "$AGENT_BIN" "$HANDOFF_PROMPT" <"$tty_dev" >"$tty_dev" 2>&1
+    fi
     if ( : </dev/tty >/dev/tty ) 2>/dev/null; then
         exec "$AGENT_BIN" "$HANDOFF_PROMPT" </dev/tty >/dev/tty 2>&1
     fi
@@ -1565,8 +1582,8 @@ PY
     echo "$AUTH_NOTE"
     echo ""
     # exec replaces this shell - the agent takes over with the initial prompt
-    # loaded (on /dev/tty, see exec_handoff_agent). If exec fails (broken
-    # install), the lines below print as a fallback.
+    # loaded (on the controlling tty, see exec_handoff_agent). If exec fails
+    # (broken install), the lines below print as a fallback.
     exec_handoff_agent
 fi
 
