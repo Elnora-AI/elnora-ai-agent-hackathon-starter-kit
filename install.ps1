@@ -350,9 +350,33 @@ if (Test-Path $TargetDir) {
         Write-Host "    Don't re-run install.ps1 -- it would erase the resume state." -ForegroundColor Red
         Write-Host "    Instead, finish the handoff from the existing folder:" -ForegroundColor Red
         Write-Host ""
-        Write-Host "      cd `"$TargetDir`"; .\setup-windows.ps1" -ForegroundColor Red
+        Write-Host "      powershell -ExecutionPolicy Bypass -File `"$TargetDir\setup-windows.ps1`"" -ForegroundColor Red
         Write-Host ""
         throw "Refusing to wipe in-progress handoff at $TargetDir"
+    }
+    # A workspace that FINISHED setup has had its install scaffolding removed
+    # (Phase 2's final cleanup deletes setup-windows.ps1 and friends, then
+    # commits) -- so "folder exists, is a git repo, has no setup script"
+    # means there is nothing left to install. Wiping it would destroy the
+    # user's post-setup work (the wipe preserves only .env and two .claude
+    # config files). Tell them how to actually continue and stop here.
+    if (-not (Test-Path (Join-Path $TargetDir "setup-windows.ps1")) -and (Test-Path (Join-Path $TargetDir ".git"))) {
+        Write-Host "[OK] '$WorkspaceName' already finished setup - there's nothing to install." -ForegroundColor Green
+        Write-Host ""
+        Write-Host "    (The install scripts inside it were removed by the final cleanup"
+        Write-Host "    step, which only runs after a successful setup.)"
+        Write-Host ""
+        Write-Host "    To continue working with your agent:"
+        Write-Host ""
+        Write-Host "      cd `"$TargetDir`""
+        Write-Host "      claude"
+        Write-Host ""
+        Write-Host "    (Or 'codex' if that's the agent you picked.)"
+        Write-Host ""
+        Write-Host "    To set up a brand-new, separate workspace instead, re-run this"
+        Write-Host "    installer and pick a DIFFERENT name - re-installing into this"
+        Write-Host "    folder would overwrite the work you've done in it."
+        return
     }
     Write-Host "Existing starter kit detected at $TargetDir" -ForegroundColor Gray
 
