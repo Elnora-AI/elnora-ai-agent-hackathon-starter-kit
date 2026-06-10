@@ -135,13 +135,13 @@ push didn't land on `origin/main`.
 
 ---
 
-## 6. "VS Code opened but Claude never started" (auto-task prompt missed)
+## 6. "VS Code opened but my agent never started" (auto-task prompt missed)
 
-**Symptom:** Phase 1 said `Opening VS Code - Claude will continue Phase 2
-setup there`, your bootstrap terminal exited cleanly, VS Code came up at
-the starter-kit folder, but no terminal panel ever opened with Claude
-running. You may have seen a yellow popup at the bottom-right and dismissed
-it without reading.
+**Symptom:** Phase 1 said `Opening VS Code - Claude Code will continue
+Phase 2 setup there` (or `... Codex will continue ...`), your bootstrap
+terminal exited cleanly, VS Code came up at the starter-kit folder, but no
+terminal panel ever opened with the agent running. You may have seen a
+yellow popup at the bottom-right and dismissed it without reading.
 
 **What happened:** VS Code has *two* one-time security prompts on first
 open of a workspace with auto-running tasks:
@@ -168,7 +168,8 @@ it, the handoff task is configured but inert.
   powershell -ExecutionPolicy Bypass -File .vscode\run-handoff.ps1   # Windows
   ```
   This is the same script the auto-task fires; it consumes the same
-  one-shot sentinel and starts Claude on the Phase 2 prompt.
+  one-shot sentinel and starts your chosen agent (Claude or Codex) on the
+  Phase 2 prompt.
 
 - **Re-arm the auto-task for next time.** Open VS Code's command palette
   (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run **`Tasks: Manage Automatic Tasks`**.
@@ -176,14 +177,15 @@ it, the handoff task is configured but inert.
   future trusted workspace (including future starter-kit installs) will
   auto-fire without prompting.
 
-- **Just open Claude in the terminal yourself.** If you'd rather skip the
-  task system entirely, run:
+- **Just open the agent in the terminal yourself.** If you'd rather skip
+  the task system entirely, run (swap `claude` for `codex` if Codex is your
+  agent):
   ```
   claude "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup."
   ```
   This is byte-identical to what the helper does.
 
-Any of the three gets you to the same place: Claude reading
+Any of the three gets you to the same place: your agent reading
 `INSTALL_FOR_AGENTS.md` and finishing Phase 2.
 
 ---

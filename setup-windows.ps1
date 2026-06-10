@@ -1482,6 +1482,92 @@ if ($env:GITHUB_PATH) {
     Write-Host "  (CI: propagated PATH to `$GITHUB_PATH for downstream steps)"
 }
 
+# --- Agent language choice ---------------------------------------------------
+# Let the user pick the language their agent speaks, before the agent ever
+# starts. Claude Code reads the `language` key in .claude/settings.json (the
+# exact key /config > Language writes), so setting it here means even the
+# agent's FIRST handoff message is already in the chosen language. Codex has
+# no config equivalent, so it gets a marker-bounded Language section in
+# AGENTS.md (which it auto-reads at session start). Both also get a sentence
+# appended to the handoff prompt as belt-and-suspenders.
+#
+# English (the default, and what Enter picks) changes nothing: no file
+# writes, no prompt suffix - so the headless/CI handoff prompt stays
+# byte-for-byte identical to the default interactive one. The prompt is
+# skipped entirely in CI (ELNORA_SKIP_HANDOFF / headless mode / no console).
+
+# Parse-edit .claude/settings.json with node (installed in Phase 1) - never
+# regex JSON. The script goes through a temp file because PowerShell 5.1
+# mangles embedded double quotes in arguments to native commands (node -e).
+# "__RESET__" removes the key (revert-to-English on a re-run).
+function Set-ClaudeLanguage([string]$lang) {
+    if (-not (Test-Path ".claude/settings.json")) { return $false }
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) { return $false }
+    $js = @'
+const fs = require("fs");
+const [p, lang] = process.argv.slice(2);
+const j = JSON.parse(fs.readFileSync(p, "utf8"));
+if (lang === "__RESET__") { delete j.language; } else { j.language = lang; }
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+'@
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "elnora-set-language.js"
+    try {
+        Set-Content -Path $tmp -Value $js -Encoding ASCII
+        & node $tmp ".claude/settings.json" $lang 2>$null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+    }
+}
+
+# Idempotent AGENTS.md helper: strip any previous language block (marker-
+# bounded, from an earlier run) plus trailing blank lines, so re-runs never
+# duplicate the block or accumulate separator lines. Returns the stripped
+# content WITHOUT writing it back (callers decide what to append).
+function Get-AgentsMdWithoutLanguageBlock {
+    $raw = Get-Content "AGENTS.md" -Raw
+    $stripped = [regex]::Replace($raw, "(?s)\r?\n?<!-- elnora:language:start -->.*?<!-- elnora:language:end -->\r?\n?", "")
+    return $stripped.TrimEnd()
+}
+
+$AgentLang = "English"
+$LangPromptSuffix = ""
+$canPromptLang = ($env:ELNORA_SKIP_HANDOFF -ne "1") -and
+                 ($env:ELNORA_HANDOFF_MODE -ne "headless") -and
+                 (-not [Console]::IsInputRedirected)
+if ($canPromptLang) {
+    Write-Host "  $agentName can speak with you in any language."
+    $langInput = Read-Host "  Which language should it use? [English]"
+    if (-not [string]::IsNullOrWhiteSpace($langInput)) { $AgentLang = $langInput.Trim() }
+    Write-Host ""
+}
+
+if ($AgentLang -ne "English") {
+    if (Set-ClaudeLanguage $AgentLang) {
+        Write-Host "  Claude Code language set to: $AgentLang (change anytime with /config)"
+    } else {
+        Write-Host "  [WARN] Could not update .claude/settings.json - the agent will be told your language via the handoff prompt instead." -ForegroundColor Yellow
+    }
+    if (Test-Path "AGENTS.md") {
+        $agentsMdPath = Join-Path (Get-Location) "AGENTS.md"
+        $langBlock = "<!-- elnora:language:start -->`n## Language`n`nAlways speak with the user in $AgentLang. Keep code, shell commands, file`ncontents, commit messages, and technical identifiers in English.`n<!-- elnora:language:end -->"
+        $newContent = (Get-AgentsMdWithoutLanguageBlock) + "`n`n" + $langBlock + "`n"
+        [System.IO.File]::WriteAllText($agentsMdPath, $newContent, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "  AGENTS.md language note set to: $AgentLang"
+    }
+    $LangPromptSuffix = " The user chose to interact in $AgentLang - speak with them in $AgentLang from your first message onward (keep code, commands, and file contents in English)."
+} elseif ((Test-Path "AGENTS.md") -and ((Get-Content "AGENTS.md" -Raw) -match 'elnora:language:start')) {
+    # Re-run reverting to English: undo the earlier non-English choice so the
+    # agent doesn't keep speaking the old language.
+    $agentsMdPath = Join-Path (Get-Location) "AGENTS.md"
+    $newContent = (Get-AgentsMdWithoutLanguageBlock) + "`n"
+    [System.IO.File]::WriteAllText($agentsMdPath, $newContent, [System.Text.UTF8Encoding]::new($false))
+    [void](Set-ClaudeLanguage "__RESET__")
+    Write-Host "  Agent language reset to English."
+}
+
 # Close the transcript before handing off, so the log file is flushed and
 # Claude can read it as part of Phase 2.
 try { Stop-Transcript | Out-Null } catch { }
@@ -1489,7 +1575,9 @@ try { Stop-Transcript | Out-Null } catch { }
 # The exact prompt handed to Claude. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
 # divergence here is the bug headless mode is supposed to catch.
-$HandoffPrompt = "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log."
+# $LangPromptSuffix is empty unless the user picked a non-English language
+# above (never in CI).
+$HandoffPrompt = "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log.$($LangPromptSuffix)"
 
 $agentAvailable = Get-Command $agentBin -ErrorAction SilentlyContinue
 if ($agentAvailable) {

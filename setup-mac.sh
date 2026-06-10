@@ -1221,12 +1221,109 @@ if [ -n "${GITHUB_PATH:-}" ]; then
     echo "  (CI: propagated PATH to \$GITHUB_PATH for downstream steps)"
 fi
 
+# --- Agent language choice --------------------------------------------------
+# Let the user pick the language their agent speaks, before the agent ever
+# starts. Claude Code reads the `language` key in .claude/settings.json (the
+# exact key /config > Language writes), so setting it here means even the
+# agent's FIRST handoff message is already in the chosen language. Codex has
+# no config equivalent, so it gets a marker-bounded Language section in
+# AGENTS.md (which it auto-reads at session start). Both also get a sentence
+# appended to the handoff prompt as belt-and-suspenders.
+#
+# English (the default, and what Enter picks) changes nothing: no file
+# writes, no prompt suffix - so the headless/CI handoff prompt stays
+# byte-for-byte identical to the default interactive one. The prompt is
+# skipped entirely in CI (ELNORA_SKIP_HANDOFF / headless mode / no TTY).
+AGENT_LANG="English"
+LANG_PROMPT_SUFFIX=""
+if [ "${ELNORA_SKIP_HANDOFF:-}" != "1" ] && [ "${ELNORA_HANDOFF_MODE:-}" != "headless" ] && [ -t 0 ]; then
+    echo "  $AGENT_NAME can speak with you in any language."
+    read -r -p "  Which language should it use? [English] " _lang_input || _lang_input=""
+    _lang_input="$(printf '%s' "$_lang_input" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if [ -n "$_lang_input" ]; then
+        AGENT_LANG="$_lang_input"
+    fi
+    echo ""
+fi
+
+# Idempotent AGENTS.md helper: strip any previous language block (marker-
+# bounded, from an earlier run) plus trailing blank lines, so re-runs never
+# duplicate the block or accumulate separator lines.
+strip_agents_md_language_block() {
+    [ -f "AGENTS.md" ] || return 0
+    if awk '
+        /<!-- elnora:language:start -->/ { skip = 1; next }
+        /<!-- elnora:language:end -->/   { skip = 0; next }
+        skip { next }
+        { lines[++n] = $0 }
+        END {
+            while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--
+            for (i = 1; i <= n; i++) print lines[i]
+        }
+    ' AGENTS.md > AGENTS.md.tmp 2>/dev/null; then
+        mv AGENTS.md.tmp AGENTS.md
+    else
+        rm -f AGENTS.md.tmp
+    fi
+}
+
+if [ "$AGENT_LANG" != "English" ]; then
+    # Claude Code: parse-edit .claude/settings.json with node (installed in
+    # Phase 1) - never sed JSON. On any failure the file is left alone and
+    # the handoff-prompt sentence below still carries the instruction.
+    if [ -f ".claude/settings.json" ] && command -v node >/dev/null 2>&1; then
+        if node -e '
+const fs = require("fs");
+const [p, lang] = process.argv.slice(1);
+const j = JSON.parse(fs.readFileSync(p, "utf8"));
+j.language = lang;
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+' ".claude/settings.json" "$AGENT_LANG" 2>/dev/null; then
+            echo "  Claude Code language set to: $AGENT_LANG (change anytime with /config)"
+        else
+            echo "  [WARN] Could not update .claude/settings.json - the agent will be told your language via the handoff prompt instead." >&2
+        fi
+    fi
+
+    # Codex (and any AGENTS.md-reading agent): rewrite the language block.
+    if [ -f "AGENTS.md" ]; then
+        strip_agents_md_language_block
+        cat >> AGENTS.md <<EOF
+
+<!-- elnora:language:start -->
+## Language
+
+Always speak with the user in $AGENT_LANG. Keep code, shell commands, file
+contents, commit messages, and technical identifiers in English.
+<!-- elnora:language:end -->
+EOF
+        echo "  AGENTS.md language note set to: $AGENT_LANG"
+    fi
+
+    LANG_PROMPT_SUFFIX=" The user chose to interact in $AGENT_LANG - speak with them in $AGENT_LANG from your first message onward (keep code, commands, and file contents in English)."
+elif grep -q '<!-- elnora:language:start -->' AGENTS.md 2>/dev/null; then
+    # Re-run reverting to English: undo the earlier non-English choice so the
+    # agent doesn't keep speaking the old language.
+    strip_agents_md_language_block
+    if [ -f ".claude/settings.json" ] && command -v node >/dev/null 2>&1; then
+        node -e '
+const fs = require("fs");
+const p = process.argv[1];
+const j = JSON.parse(fs.readFileSync(p, "utf8"));
+delete j.language;
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+' ".claude/settings.json" 2>/dev/null || true
+    fi
+    echo "  Agent language reset to English."
+fi
+
 # The exact prompt handed to the agent. Defined once so the headless test mode
 # below uses byte-for-byte the same string as the production handoff -
 # divergence here is the bug headless mode is supposed to catch. Both agents
 # read INSTALL_FOR_AGENTS.md (it carries an "Agent tooling adapter" section so
-# Codex maps Claude tool names to its own equivalents).
-HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log."
+# Codex maps Claude tool names to its own equivalents). LANG_PROMPT_SUFFIX is
+# empty unless the user picked a non-English language above (never in CI).
+HANDOFF_PROMPT="Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at ~/claude-starter-install.log.${LANG_PROMPT_SUFFIX}"
 
 # Replace this shell with the interactive agent, reattached to the real
 # terminal. The whole script runs under `exec > >(tee "$LOG_FILE")` (top of
@@ -1494,20 +1591,21 @@ PY
     # Interactive handoff. Three branches by environment:
     #
     #   1. Already inside VS Code's integrated terminal ($TERM_PROGRAM=vscode):
-    #      the user has the IDE on screen already, so just exec claude in
+    #      the user has the IDE on screen already, so just exec the agent in
     #      this shell. No window-launching dance needed.
     #
     #   2. `code` CLI on PATH and the user hasn't opted out: write a one-shot
-    #      sentinel containing the handoff prompt, open VS Code at this repo,
-    #      and exit. VS Code's runOn:folderOpen task picks up the sentinel and
-    #      hands off to claude inside the integrated terminal -- so users get
-    #      the file tree, source control panel, and IDE around their session
-    #      instead of a bare Terminal.app. ELNORA_SKIP_VSCODE_HANDOFF=1 is
-    #      the user-facing escape hatch.
+    #      sentinel containing the handoff prompt (plus a sibling file naming
+    #      the chosen agent), open VS Code at this repo, and exit. VS Code's
+    #      runOn:folderOpen task picks up the sentinel and hands off to the
+    #      agent (claude or codex) inside the integrated terminal -- so users
+    #      get the file tree, source control panel, and IDE around their
+    #      session instead of a bare Terminal.app.
+    #      ELNORA_SKIP_VSCODE_HANDOFF=1 is the user-facing escape hatch.
     #
-    #   3. Fallback: claude in this shell (today's behavior). Triggered when
-    #      VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or the
-    #      `code` shim couldn't be created (brew bin not writable, Cursor
+    #   3. Fallback: the agent in this shell (today's behavior). Triggered
+    #      when VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or
+    #      the `code` shim couldn't be created (brew bin not writable, Cursor
     #      instead of VS Code, etc.).
     if [ "${TERM_PROGRAM:-}" = "vscode" ]; then
         # Already in VS Code, so we don't launch a window -- but still drop the
@@ -1520,19 +1618,19 @@ PY
         exec_handoff_agent
     fi
 
-    # The VS Code sentinel handoff drives `claude` specifically (run-handoff.sh
-    # exec's claude), so it only applies when Claude is the handoff agent. Codex
-    # falls through to the terminal exec below (still inside VS Code's integrated
-    # terminal when launched from there).
-    if [ "$AGENT_BIN" = "claude" ] && command -v code >/dev/null 2>&1 && [ "${ELNORA_SKIP_VSCODE_HANDOFF:-}" != "1" ]; then
+    if command -v code >/dev/null 2>&1 && [ "${ELNORA_SKIP_VSCODE_HANDOFF:-}" != "1" ]; then
         VSCODE_DIR="$SCRIPT_DIR/.vscode"
         SENTINEL="$VSCODE_DIR/.handoff-pending"
+        AGENT_SENTINEL="$VSCODE_DIR/.handoff-agent"
         if [ -d "$VSCODE_DIR" ] && [ -f "$VSCODE_DIR/run-handoff.sh" ]; then
             # The sentinel's content IS the prompt -- keeps a single source of
-            # truth ($HANDOFF_PROMPT in this script). The helper reads, deletes,
-            # then exec's claude. Pre-delete on the helper side guarantees the
-            # task is one-shot even if claude crashes.
+            # truth ($HANDOFF_PROMPT in this script). The sibling agent file
+            # names the agent the helper should launch (claude or codex). The
+            # helper reads both, deletes both, then exec's the agent.
+            # Pre-delete on the helper side guarantees the task is one-shot
+            # even if the agent crashes.
             printf '%s' "$HANDOFF_PROMPT" > "$SENTINEL"
+            printf '%s' "$AGENT_BIN" > "$AGENT_SENTINEL"
             chmod +x "$VSCODE_DIR/run-handoff.sh" 2>/dev/null || true
 
             # Create the named workspace file + set restoreWindows BEFORE we
@@ -1540,7 +1638,7 @@ PY
             # window sticks across relaunches.
             ensure_vscode_workspace || true
 
-            echo "Opening VS Code - Claude will continue Phase 2 setup there."
+            echo "Opening VS Code - $AGENT_NAME will continue Phase 2 setup there."
             echo ""
             echo "VS Code will show TWO one-time prompts before the handoff fires."
             echo "Click through both:"
@@ -1550,11 +1648,10 @@ PY
             echo "      automatically. Do you want to allow automatic tasks ...?'"
             echo "       -> Click 'Allow'  (VS Code remembers this globally)"
             echo ""
-            echo "Once both are approved, an integrated terminal opens with Claude"
-            echo "already on the Phase 2 prompt. On first run, your browser will"
-            echo "open to log into your Claude Pro/Max account."
+            echo "Once both are approved, an integrated terminal opens with $AGENT_NAME"
+            echo "already on the Phase 2 prompt. $AUTH_NOTE"
             echo ""
-            echo "If you click Disallow on the second prompt, or Claude does not"
+            echo "If you click Disallow on the second prompt, or $AGENT_NAME does not"
             echo "auto-start for any other reason, open a terminal in VS Code"
             echo "(Ctrl+\` or View > Terminal) and run:"
             echo "    bash .vscode/run-handoff.sh"
@@ -1571,7 +1668,7 @@ PY
                 exit 0
             fi
             echo "  [!] 'code' command failed - falling back to terminal handoff." >&2
-            rm -f "$SENTINEL"
+            rm -f "$SENTINEL" "$AGENT_SENTINEL"
         fi
     fi
 
