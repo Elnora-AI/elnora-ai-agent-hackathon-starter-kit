@@ -26,12 +26,16 @@ Claude remembers context within a conversation. When you start a new conversatio
 
 ### Talk to Claude like a colleague
 
-You don't need special syntax. Just describe what you want in plain English:
+You don't need special syntax. Just describe what you want in plain English.
+A few business cases to get you started (these are the kinds of things the
+agents do day to day):
 
-- "Read the file `report.docx` and summarize the key findings"
-- "Create a new markdown file with meeting notes from today"
-- "Search all files in this project for mentions of 'budget'"
-- "Help me write an email to the team about the Q2 timeline"
+- "Read my recent inbox, decide who needs a reply, and draft each one"
+- "Find the right decision-maker to email at [company] and draft an intro"
+- "Turn this call transcript into a draft contract and save it as a PDF"
+- "Research the top 10 companies in [industry] into a spreadsheet"
+- "Review this contract and tell me where we're most exposed"
+- "Turn this Markdown file into a polished slide deck or Google Doc"
 
 ### Use your knowledge base
 

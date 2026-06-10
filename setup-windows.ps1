@@ -1442,11 +1442,24 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
     Write-Host ""
 }
 
+# Resolve the handoff agent's binary, display name, and first-run auth note.
+# Done before the closing banners below so they name the agent the user
+# actually chose instead of hardcoding "Claude".
+if ($HandoffAgent -eq 'codex') {
+    $agentBin  = 'codex'
+    $agentName = 'Codex'
+    $authNote  = "On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
+} else {
+    $agentBin  = 'claude'
+    $agentName = 'Claude Code'
+    $authNote  = "On first run, your browser will open to log into your Claude Pro/Max account."
+}
+
 Write-Host "==========================================="
 Write-Host "  Quick PATH note"
 Write-Host "==========================================="
 Write-Host ""
-Write-Host "  'claude' is at %USERPROFILE%\.local\bin\."
+Write-Host "  '$agentBin' is at %USERPROFILE%\.local\bin\."
 Write-Host "  - In any terminal opened AFTER this install: works automatically."
 Write-Host "  - In a terminal opened BEFORE this install (rare):"
 Write-Host "      `$env:Path = `"`$env:USERPROFILE\.local\bin;`$env:Path`""
@@ -1454,7 +1467,7 @@ Write-Host "    or just open a fresh PowerShell window."
 Write-Host ""
 
 Write-Host "==========================================="
-Write-Host "  Phase 1 complete - handing off to Claude"
+Write-Host "  Phase 1 complete - handing off to $agentName"
 Write-Host "==========================================="
 Write-Host ""
 
@@ -1481,17 +1494,6 @@ try { Stop-Transcript | Out-Null } catch { }
 # below uses byte-for-byte the same string as the production handoff -
 # divergence here is the bug headless mode is supposed to catch.
 $HandoffPrompt = "Phase 1 of the Elnora AI Agent Hackathon Starter Kit install just completed. Please read INSTALL_FOR_AGENTS.md in this directory and finish Phase 2 setup. The Phase 1 install log is at $env:USERPROFILE\claude-starter-install.log."
-
-# Resolve the handoff agent's binary, display name, and first-run auth note.
-if ($HandoffAgent -eq 'codex') {
-    $agentBin  = 'codex'
-    $agentName = 'Codex'
-    $authNote  = "On first run, a browser may open so you can sign in to your ChatGPT (OpenAI) account."
-} else {
-    $agentBin  = 'claude'
-    $agentName = 'Claude Code'
-    $authNote  = "On first run, your browser will open to log into your Claude Pro/Max account."
-}
 
 $agentAvailable = Get-Command $agentBin -ErrorAction SilentlyContinue
 if ($agentAvailable) {

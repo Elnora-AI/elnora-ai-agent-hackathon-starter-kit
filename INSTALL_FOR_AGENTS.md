@@ -22,8 +22,8 @@ bootstrap, the verification checklist) is identical for both agents; only the
 tool names differ.
 
 Be transparent: announce each step before you run it, show the output, and
-explain what you found. The user is likely a lab scientist who has never
-coded before — keep your language plain and your steps small.
+explain what you found. The user is likely a business or non-technical user
+who has never coded before — keep your language plain and your steps small.
 
 ### Agent tooling adapter (Claude Code ↔ Codex)
 
@@ -523,7 +523,7 @@ the same step, before any git history exists.
    **Do not ask about visibility.** Always private. If the user requests
    public, explain: "Let's keep this one private — it can hold credentials,
    vault paths, and personal notes safely. If you want a public repo later
-   for sharing a sample protocol, create a separate one for that."
+   for sharing a sample or demo, create a separate one for that."
 
 2. **Check availability on GitHub BEFORE we touch git locally.** If
    the user already has a repo with this name on their GitHub account,
@@ -1020,12 +1020,12 @@ act on silently; do not paste it into chat.
 #### 5g. Show the user what they just got
 
 Briefly, in the user's words, list two or three concrete things you
-can now do on their behalf. Tailor it to who they are — for a lab
-scientist that's usually:
+can now do on their behalf. Tailor it to who they are — for most
+business users that's usually:
 
-- "I can pull data off your lab's web portal without you copy-pasting it."
-- "I can fill out forms (vendor portals, ordering systems) for you to
-  review before submitting."
+- "I can pull data off a web portal or dashboard without you copy-pasting it."
+- "I can fill out forms (vendor portals, ordering systems, web forms) for
+  you to review before submitting."
 - "If a web app is misbehaving, I can read the console errors and
   network requests directly instead of asking you to paste them."
 
@@ -1412,8 +1412,9 @@ what's useful for day-to-day work.
 
 1. Open this folder in your editor (or `cd` here in a terminal).
 2. Start Claude Code with `claude`.
-3. Ask Claude to do work — generate protocols, write notes, plan
-   experiments.
+3. Ask Claude to do work — triage your inbox and draft replies, research
+   a target company into a spreadsheet, turn a call transcript into a
+   draft contract, or review a document.
 4. Commit and push your changes (`git add -A && git commit && git push`)
    to keep your work backed up to GitHub.
 
@@ -1476,8 +1477,14 @@ Tell the user:
   as the local folder, so the two stay in sync.
 - This is now their repo to manage from here. Commit, push, branch, rename
   it — whatever they want.
-- Next: try asking Claude to do something — write notes, plan an
-  experiment, draft a document.
+- Next: try asking Claude to do real work. A few business cases to spark
+  ideas (drawn from what these agents actually do day to day):
+  - "Read my recent inbox, decide who needs a reply, and draft each one."
+  - "Find the right decision-maker to email at [company] and draft an intro."
+  - "Turn this call transcript into a draft contract and save it as a PDF."
+  - "Research the top 10 companies in [industry/country] into a spreadsheet."
+  - "Review this policy/contract and tell me where we're most exposed."
+  - "Turn this Markdown into a polished slide deck (or Google Doc)."
 
 If anything went wrong during setup, ask Claude in this same window for help
 debugging — they can read the install log at `~/claude-starter-install.log`
