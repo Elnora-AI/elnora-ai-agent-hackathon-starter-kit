@@ -53,37 +53,51 @@ means trusting those sources.
 
 ## If it stops, just run it again
 
-Stopped, closed the terminal, or sign-in didn't go through? **Just run it
-again.** It resumes where it left off — already-installed tools are skipped.
-You'll see `Resuming where a previous run left off` at the top, so you know it's
-continuing, not starting over.
-
-```bash
-# macOS
-bash setup-mac.sh
-```
-
-```powershell
-# Windows
-.\setup-windows.ps1
-```
-
-Re-running the install one-liner is safe too: it remembers the workspaces you
-already started and offers to resume one instead of creating a duplicate folder.
+Stopped, closed the terminal, or sign-in didn't go through? **Run the same
+install one-liner again** (from [Install](#install) above). It remembers the
+workspace you already started and offers to resume it — already-installed
+tools are skipped, and your `.env` / local config files are preserved. You'll
+see `Resuming where a previous run left off`, so you know it's continuing,
+not starting over.
 
 The most common stopping point is the **sign-in** step — make sure your agent
 account is active, then re-run and complete the login when the browser opens.
 
-Want a completely clean run instead? Add `--fresh`:
+You can also run the setup script inside your workspace folder directly.
+These commands work from any directory in a fresh terminal — replace
+`<your-workspace>` with the workspace name you chose:
 
 ```bash
 # macOS
-bash setup-mac.sh --fresh
+bash ~/Documents/<your-workspace>/setup-mac.sh
 ```
 
 ```powershell
 # Windows
-.\setup-windows.ps1 --fresh
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Documents\<your-workspace>\setup-windows.ps1"
+```
+
+Want a completely clean run instead? Add `--fresh` to the end of either
+command.
+
+### Script "not recognized" / not found? Setup already finished
+
+If the setup script is missing from your workspace folder, that's not an
+error — it means **setup completed**. The final cleanup step removes the
+install scripts once everything is done, so there is nothing left to re-run.
+To continue working with your agent, open a terminal and start it in your
+workspace:
+
+```bash
+# macOS
+cd ~/Documents/<your-workspace>
+claude        # or codex
+```
+
+```powershell
+# Windows
+cd $env:USERPROFILE\Documents\<your-workspace>
+claude        # or codex
 ```
 
 ## What happens

@@ -204,17 +204,22 @@ that stopped you. Nothing you already did is repeated or lost.
 1. If a step errored, read the remediation hints it printed and fix the
    underlying issue (most often: a system dialog you missed, a network
    timeout, or a Claude sign-in you didn't complete).
-2. Re-run the **same command you started with**:
-   - macOS: `bash setup-mac.sh`
-   - Windows: `.\setup-windows.ps1`
+2. Re-run the setup script. These forms work from any directory in a fresh
+   terminal (replace `<your-workspace>` with the workspace name you chose):
+   - macOS: `bash ~/Documents/<your-workspace>/setup-mac.sh`
+   - Windows: `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Documents\<your-workspace>\setup-windows.ps1"`
    When it reaches the top it prints `Resuming where a previous run left
    off` so you know it's continuing, not starting over.
 
-**Want a completely clean run instead?** Start from scratch with the `--fresh`
-flag, which clears the saved progress:
+   (A bare `.\setup-windows.ps1` only works if you're already `cd`'d into the
+   workspace folder AND your execution policy allows scripts — in a fresh
+   PowerShell window, neither is true. If PowerShell says the script is "not
+   recognized" even from inside the folder, setup already **finished** and
+   cleaned the install scripts up: just `cd` there and run `claude`/`codex`.)
 
-- macOS: `bash setup-mac.sh --fresh`
-- Windows: `.\setup-windows.ps1 --fresh`
+**Want a completely clean run instead?** Start from scratch with the `--fresh`
+flag, which clears the saved progress — add ` --fresh` to the end of either
+command above.
 
 **Lost track of the folder and only remember the install one-liner?** Re-run it
 (`curl … | bash` on macOS, `irm … | iex` on Windows) — it's safe. The installer
