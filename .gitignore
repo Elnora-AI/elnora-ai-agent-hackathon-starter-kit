@@ -68,11 +68,13 @@ azure-*.json
 # step 6c.4's `git add .`). Step 0.6 deletes it locally once consumed.
 .elnora-handoff-resume.json
 
-# One-shot Phase 1 -> Phase 2 handoff sentinel. setup-mac.sh / setup-windows.ps1
-# write the literal handoff prompt into this file, then open VS Code; the
-# .vscode/run-handoff.{sh,ps1} helper reads it once and deletes it. Pure
+# One-shot Phase 1 -> Phase 2 handoff sentinels. setup-mac.sh / setup-windows.ps1
+# write the literal handoff prompt into .handoff-pending and the chosen agent
+# (claude|codex) into .handoff-agent, then open VS Code; the
+# .vscode/run-handoff.{sh,ps1} helper reads both once and deletes them. Pure
 # runtime state — never committed.
 .vscode/.handoff-pending
+.vscode/.handoff-agent
 
 # Runtime scratch folder — regenerable state, logs, downloaded artifacts
 # Keep the folder (README + .gitkeep) but ignore everything else inside
