@@ -625,9 +625,12 @@ the same step, before any git history exists.
    >   - macOS: `mv ~/Documents/<OLD_NAME> ~/Documents/<NEW_NAME>`
    >   - Windows: `Move-Item $env:USERPROFILE\\Documents\\<OLD_NAME> $env:USERPROFILE\\Documents\\<NEW_NAME>`
    >
-   > **3. Open a new terminal in the renamed folder and re-run setup**:
-   >   - macOS: `cd ~/Documents/<NEW_NAME> && bash setup-mac.sh`
-   >   - Windows: `cd $env:USERPROFILE\\Documents\\<NEW_NAME>; .\\setup-windows.ps1`
+   > **3. Open a new terminal and re-run setup** (works from any folder):
+   >   - macOS: `bash ~/Documents/<NEW_NAME>/setup-mac.sh`
+   >   - Windows: `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\Documents\\<NEW_NAME>\\setup-windows.ps1"`
+   >     (a fresh PowerShell window blocks bare `.\\setup-windows.ps1` —
+   >     default execution policy is Restricted, so keep the
+   >     `-ExecutionPolicy Bypass -File` form)
    >
    > setup-mac.sh / setup-windows.ps1 is safe to re-run — every install
    > step short-circuits when the tool is already present, and at the

@@ -6,8 +6,8 @@
 # Claude Code CLI, Homebrew, Node.js, Git, Python,
 # VS Code, GitHub CLI, and Obsidian.
 #
-# Run from Terminal (or VS Code terminal):
-#   chmod +x setup-mac.sh && ./setup-mac.sh
+# Run from Terminal (or VS Code terminal; works from any directory):
+#   bash ~/Documents/<workspace>/setup-mac.sh
 #
 # Error handling: the script CONTINUES on failure. Each step is
 # isolated - if one install fails (network, permissions, broken
@@ -25,6 +25,28 @@ set -u
 # opened before any prior install (where ~/.local/bin isn't yet in the
 # inherited PATH). Idempotent -- no harm if the dir doesn't exist yet.
 export PATH="$HOME/.local/bin:$PATH"
+
+# Run from the script's own directory. People resume from a fresh Terminal
+# window (cwd = $HOME), and every relative path below - plus the Phase 2
+# agent handoff, which tells the agent to read INSTALL_FOR_AGENTS.md "in
+# this directory" - assumes cwd = kit root. ${BASH_SOURCE[0]} is the right
+# answer when this file was executed by name; it's empty when the script is
+# read on stdin (`bash < setup-mac.sh`) and equals `/dev/stdin` or `-` for
+# some piped invocations. Fall back to $0, then to $PWD.
+script_path="${BASH_SOURCE[0]:-$0}"
+if [ -z "$script_path" ] || [ "$script_path" = "/dev/stdin" ] || [ "$script_path" = "-" ]; then
+    SCRIPT_DIR="$PWD"
+else
+    SCRIPT_DIR="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)"
+    [ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="$PWD"
+fi
+cd "$SCRIPT_DIR" || true
+
+# Copy-pasteable re-run command used by every resume hint below. A bare
+# `bash setup-mac.sh` only works when the user is already cd'd into the
+# kit - not true in the fresh Terminal window people open when they come
+# back later. This form works from any directory.
+RESUME_CMD="bash \"$SCRIPT_DIR/setup-mac.sh\""
 
 # Default-on logging. Tee everything (stdout + stderr) to a log file in $HOME.
 # Overwrites on each run - re-runs are idempotent, so keeping old logs around
@@ -53,8 +75,8 @@ FAILED_STEPS=()
 # Code sign-in step. If that happens - or the script is interrupted anywhere
 # else - just run it again. It picks up right where you left off.
 #
-#   Resume (default):   bash setup-mac.sh
-#   Start over clean:   bash setup-mac.sh --fresh   (--restart is an alias)
+#   Resume (default):   bash <kit-dir>/setup-mac.sh
+#   Start over clean:   bash <kit-dir>/setup-mac.sh --fresh   (--restart is an alias)
 #
 # ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
 # local re-run of the smoke test starts from a clean slate).
@@ -123,18 +145,6 @@ If 'brew: command not found', brew itself isn't on PATH - fix that first
 (see the Homebrew remediation above) and re-run this script.
 EOF
             ;;
-        Git*)
-            cat <<'EOF'
-Try manually:
-  brew install git
-Verify:
-  git --version
-  which git            # should be /opt/homebrew/bin/git or /usr/local/bin/git
-macOS ships a system git at /usr/bin/git that may be older. If brew's git
-isn't being used, your PATH has /usr/bin before Homebrew - fix the order
-in ~/.zprofile (the brew shellenv line should come AFTER any PATH exports).
-EOF
-            ;;
         "Git config"*)
             cat <<'EOF'
 Set the values manually:
@@ -197,6 +207,20 @@ Verify:
   gh --version
 Then authenticate:
   gh auth login       # choose GitHub.com, HTTPS, then browser login
+EOF
+            ;;
+        # Keep this AFTER "Git config"* and "GitHub CLI"* - both also start
+        # with "Git", so this catch-all would shadow them (SC2221/SC2222).
+        Git*)
+            cat <<'EOF'
+Try manually:
+  brew install git
+Verify:
+  git --version
+  which git            # should be /opt/homebrew/bin/git or /usr/local/bin/git
+macOS ships a system git at /usr/bin/git that may be older. If brew's git
+isn't being used, your PATH has /usr/bin before Homebrew - fix the order
+in ~/.zprofile (the brew shellenv line should come AFTER any PATH exports).
 EOF
             ;;
         Obsidian*)
@@ -286,7 +310,7 @@ echo ""
 # not "starting over".
 if [ -s "$SETUP_STATE_FILE" ]; then
     echo "  Resuming where a previous run left off - finished steps are skipped."
-    echo "  (To start over from scratch instead:  bash setup-mac.sh --fresh)"
+    echo "  (To start over from scratch instead:  $RESUME_CMD --fresh)"
     echo ""
 fi
 
@@ -925,7 +949,7 @@ if [ ${#FAILED_STEPS[@]} -gt 0 ]; then
         remediation_hint "$step_label"
     done
     echo ""
-    echo "Once you've fixed the issue(s), re-run:  ./setup-mac.sh"
+    echo "Once you've fixed the issue(s), re-run:  $RESUME_CMD"
     echo "The script is idempotent - already-installed steps are skipped."
     echo "==========================================="
     echo ""
@@ -1004,7 +1028,7 @@ else
                     echo ""
                     echo "         Nothing is lost. When you're ready, run again:"
                     echo ""
-                    echo "             bash setup-mac.sh"
+                    echo "             $RESUME_CMD"
                     echo ""
                     echo "         It resumes right here at the sign-in step - every"
                     echo "         tool above is already installed and skipped instantly."
@@ -1014,11 +1038,11 @@ else
                 ;;
             [Ss]*)
                 echo "      [SKIP] Phase 2 needs a signed-in agent to finish setup."
-                echo "             Re-run when ready:  bash setup-mac.sh"
+                echo "             Re-run when ready:  $RESUME_CMD"
                 exit 0
                 ;;
             [Qq]*)
-                echo "      Quit. Re-run anytime:  bash setup-mac.sh"
+                echo "      Quit. Re-run anytime:  $RESUME_CMD"
                 exit 0
                 ;;
             *)
@@ -1051,9 +1075,9 @@ else
                         echo "      [FAIL] Login flow returned but you are still not signed in."
                         echo ""
                         echo "         This is the most common place setup stops. Nothing is lost."
-                        echo "         When you're ready, run the SAME command again:"
+                        echo "         When you're ready, run this command (works from any folder):"
                         echo ""
-                        echo "             bash setup-mac.sh"
+                        echo "             $RESUME_CMD"
                         echo ""
                         echo "         It resumes right here at the Claude sign-in step - every"
                         echo "         tool above is already installed and is skipped instantly."
@@ -1064,9 +1088,9 @@ else
                     echo "      [FAIL] Claude sign-in didn't complete."
                     echo ""
                     echo "         This is the most common place setup stops. Nothing is lost."
-                    echo "         When you're ready, run the SAME command again:"
+                    echo "         When you're ready, run this command (works from any folder):"
                     echo ""
-                    echo "             bash setup-mac.sh"
+                    echo "             $RESUME_CMD"
                     echo ""
                     echo "         It resumes right here at the Claude sign-in step - every"
                     echo "         tool above is already installed and is skipped instantly."
@@ -1074,48 +1098,32 @@ else
                 fi
                 ;;
             [Ss]*)
-                # Use the live $PWD for the resume hint -- the user picked
-                # their workspace name in install.sh, so the folder is no
-                # longer guaranteed to be ~/Documents/elnora-ai-agent-hackathon-starter-kit.
-                # setup-mac.sh has not `cd`'d anywhere by this point, so
-                # $PWD == kit dir.
-                kit_dir_display="$PWD"
-                # Collapse $HOME into ~ for readability.
-                case "$kit_dir_display" in
-                    "$HOME"/*) kit_dir_display="~${kit_dir_display#"$HOME"}" ;;
-                esac
-                # The ASCII box is 60 chars wide; the cd line carries 8
-                # chars of prefix ("  |     cd ") plus a 52-char field plus
-                # the trailing "|". %-52s pads short strings but does NOT
-                # truncate long ones, so a path > 52 chars would push the
-                # right border off the row. Pre-truncate with an ellipsis
-                # so the box stays aligned regardless of workspace name.
-                if [ "${#kit_dir_display}" -gt 52 ]; then
-                    kit_dir_display="${kit_dir_display:0:49}..."
-                fi
+                # No fixed-width box here: $RESUME_CMD embeds the absolute
+                # kit path (workspace name is user-chosen, so its length is
+                # unbounded) and a truncated command would be uncopyable.
+                # Plain lines keep it copy-pasteable.
                 echo ""
-                echo "  +============================================================+"
-                echo "  |                                                            |"
-                echo "  |   You skipped Claude Code login.                           |"
-                echo "  |                                                            |"
-                echo "  |   That's fine - but Phase 2 (where Claude finishes setup)  |"
-                echo "  |   needs an authenticated session, so we can't continue     |"
-                echo "  |   right now.                                               |"
-                echo "  |                                                            |"
-                echo "  |   When you're ready:                                       |"
-                echo "  |                                                            |"
-                printf '  |     cd %-52s|\n' "$kit_dir_display"
-                echo "  |     bash setup-mac.sh                                      |"
-                echo "  |                                                            |"
-                echo "  |   Re-running is safe - installs are skipped if already     |"
-                echo "  |   present, and the script picks up at the auth step.       |"
-                echo "  |                                                            |"
-                echo "  +============================================================+"
+                echo "  ============================================================"
+                echo ""
+                echo "  You skipped Claude Code login."
+                echo ""
+                echo "  That's fine - but Phase 2 (where Claude finishes setup)"
+                echo "  needs an authenticated session, so we can't continue"
+                echo "  right now."
+                echo ""
+                echo "  When you're ready, run (works from any folder):"
+                echo ""
+                echo "      $RESUME_CMD"
+                echo ""
+                echo "  Re-running is safe - installs are skipped if already"
+                echo "  present, and the script picks up at the auth step."
+                echo ""
+                echo "  ============================================================"
                 echo ""
                 exit 0
                 ;;
             [Qq]*)
-                echo "      Quit. Re-run anytime:  bash setup-mac.sh"
+                echo "      Quit. Re-run anytime:  $RESUME_CMD"
                 exit 0
                 ;;
             *)
@@ -1276,20 +1284,9 @@ if command -v "$AGENT_BIN" >/dev/null 2>&1; then
     #      interactive handoff; refuse for headless mode where claude
     #      would run with bypassPermissions (see headless branch below).
 
-    # Resolve SCRIPT_DIR with a fallback. ${BASH_SOURCE[0]} is the right
-    # answer when this file was sourced or executed by name. It's empty
-    # when the script is read on stdin (`bash < setup-mac.sh`) and equals
-    # `/dev/stdin` or `-` for some piped invocations. Fall back to $0,
-    # then to $PWD, so the marker check still finds the right directory
-    # for power users who run `bash ~/Documents/elnora-ai-agent-hackathon-starter-kit/setup-mac.sh`
-    # from outside the kit dir.
-    script_path="${BASH_SOURCE[0]:-$0}"
-    if [ -z "$script_path" ] || [ "$script_path" = "/dev/stdin" ] || [ "$script_path" = "-" ]; then
-        SCRIPT_DIR="$PWD"
-    else
-        SCRIPT_DIR="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)"
-        [ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="$PWD"
-    fi
+    # SCRIPT_DIR was resolved (and cd'd into) at the top of the script, so
+    # the marker check below finds the right directory even for power users
+    # who launched this script from outside the kit dir.
 
     # ---- VS Code workspace + window restore -------------------------------
     # Two fixes for "I closed VS Code and it forgot which folder this was":
@@ -1592,7 +1589,7 @@ fi
 echo "  !  '$AGENT_BIN' command not found - $AGENT_NAME install may have failed."
 echo ""
 echo "  See the remediation hints above. Once you've fixed it, re-run:"
-echo "      ./setup-mac.sh"
+echo "      $RESUME_CMD"
 echo ""
 echo "  Or continue manually:"
 echo "      cd $(pwd)"

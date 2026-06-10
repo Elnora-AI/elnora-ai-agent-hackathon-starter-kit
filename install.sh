@@ -359,9 +359,33 @@ if [ -d "$TARGET_DIR" ]; then
         echo "    Don't re-run install.sh -- it would erase the resume state." >&2
         echo "    Instead, finish the handoff from the existing folder:" >&2
         echo "" >&2
-        echo "      cd \"$TARGET_DIR\" && bash setup-mac.sh" >&2
+        echo "      bash \"$TARGET_DIR/setup-mac.sh\"" >&2
         echo "" >&2
         exit 1
+    fi
+    # A workspace that FINISHED setup has had its install scaffolding removed
+    # (Phase 2's final cleanup deletes setup-mac.sh and friends, then
+    # commits) -- so "folder exists, is a git repo, has no setup script"
+    # means there is nothing left to install. Wiping it would destroy the
+    # user's post-setup work (the wipe preserves only .env and two .claude
+    # config files). Tell them how to actually continue and stop here.
+    if [ ! -e "$TARGET_DIR/setup-mac.sh" ] && [ -d "$TARGET_DIR/.git" ]; then
+        echo "[OK] '$WORKSPACE_NAME' already finished setup - there's nothing to install."
+        echo ""
+        echo "    (The install scripts inside it were removed by the final cleanup"
+        echo "    step, which only runs after a successful setup.)"
+        echo ""
+        echo "    To continue working with your agent:"
+        echo ""
+        echo "      cd \"$TARGET_DIR\""
+        echo "      claude"
+        echo ""
+        echo "    (Or 'codex' if that's the agent you picked.)"
+        echo ""
+        echo "    To set up a brand-new, separate workspace instead, re-run this"
+        echo "    installer and pick a DIFFERENT name - re-installing into this"
+        echo "    folder would overwrite the work you've done in it."
+        exit 0
     fi
     echo "Existing starter kit detected at $TARGET_DIR"
     # Preserve user-data files across the wipe. Stash them in a temp dir

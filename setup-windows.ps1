@@ -5,9 +5,9 @@
 # Claude Code CLI, Node.js, Git, Python, VS Code,
 # GitHub CLI, and Obsidian.
 #
-# Run from PowerShell:
-#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-#   .\setup-windows.ps1
+# Run from PowerShell (works from any directory; -ExecutionPolicy Bypass is
+# required because a fresh PowerShell defaults to Restricted):
+#   powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Documents\<workspace>\setup-windows.ps1"
 #
 # Error handling: the script CONTINUES on failure. Each step is
 # isolated - if one install fails (network, winget glitch, broken
@@ -20,6 +20,22 @@
 # Non-terminating errors don't stop the script (this is the PS default,
 # but being explicit for clarity).
 $ErrorActionPreference = "Continue"
+
+# Run from the script's own directory. People resume from a fresh PowerShell
+# window (cwd = their home dir), and every relative path below - plus the
+# Phase 2 agent handoff, which tells the agent to read INSTALL_FOR_AGENTS.md
+# "in this directory" - assumes cwd = kit root.
+$ScriptSelfPath = $MyInvocation.MyCommand.Path
+Set-Location (Split-Path -Parent $ScriptSelfPath)
+
+# Copy-pasteable re-run command used by every resume hint below. A bare
+# .\setup-windows.ps1 only works when the user is already cd'd into the kit
+# AND their execution policy allows scripts - neither is true in the fresh
+# PowerShell window people open when they come back later (default policy
+# is Restricted; the original run only worked because install.ps1 launched
+# this script with -ExecutionPolicy Bypass). This form works from any
+# directory in any fresh shell.
+$ResumeCmd = "powershell -ExecutionPolicy Bypass -File `"$ScriptSelfPath`""
 
 # Default-on logging. Start-Transcript captures all Write-Host, Write-Error,
 # AND native command output (winget, git, etc.) in PS 5.1+. Overwrites on each
@@ -47,8 +63,8 @@ $FailedSteps = New-Object System.Collections.ArrayList
 # Code sign-in step. If that happens - or the script is interrupted anywhere
 # else - just run it again. It picks up right where you left off.
 #
-#   Resume (default):   .\setup-windows.ps1
-#   Start over clean:   .\setup-windows.ps1 --fresh   (--restart is an alias)
+#   Resume (default):   powershell -ExecutionPolicy Bypass -File .\setup-windows.ps1
+#   Start over clean:   same command + --fresh   (--restart is an alias)
 #
 # ELNORA_SETUP_STATE_FILE overrides the path (used by the test suite so a
 # local re-run of the smoke test starts from a clean slate).
@@ -434,7 +450,7 @@ Write-Host ""
 # not "starting over".
 if ((Test-Path -LiteralPath $SetupStateFile) -and ((Get-Item -LiteralPath $SetupStateFile -ErrorAction SilentlyContinue).Length -gt 0)) {
     Write-Host "  Resuming where a previous run left off - finished steps are skipped." -ForegroundColor Gray
-    Write-Host "  (To start over from scratch instead:  .\setup-windows.ps1 --fresh)" -ForegroundColor Gray
+    Write-Host "  (To start over from scratch instead:  $ResumeCmd --fresh)" -ForegroundColor Gray
     Write-Host ""
 }
 
@@ -1215,7 +1231,7 @@ if ($FailedSteps.Count -gt 0) {
         }
     }
     Write-Host ""
-    Write-Host "Once you've fixed the issue(s), re-run:  .\setup-windows.ps1"
+    Write-Host "Once you've fixed the issue(s), re-run:  $ResumeCmd"
     Write-Host "The script is idempotent - already-installed steps are skipped."
     Write-Host "==========================================="
     Write-Host ""
@@ -1266,7 +1282,7 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                     Write-Host ""
                     Write-Host "         Nothing is lost. When you're ready, run again:"
                     Write-Host ""
-                    Write-Host "             .\setup-windows.ps1"
+                    Write-Host "             $ResumeCmd"
                     Write-Host ""
                     Write-Host "         To try the login by hand first:  codex login"
                     exit 1
@@ -1275,11 +1291,12 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                 Set-Checkpoint "auth-codex"
             }
             "^[Ss]" {
-                Write-Host "      [SKIP] Phase 2 needs a signed-in agent. Re-run when ready:  .\setup-windows.ps1"
+                Write-Host "      [SKIP] Phase 2 needs a signed-in agent. Re-run when ready:"
+                Write-Host "             $ResumeCmd"
                 exit 0
             }
             "^[Qq]" {
-                Write-Host "      Quit. Re-run anytime:  .\setup-windows.ps1"
+                Write-Host "      Quit. Re-run anytime:  $ResumeCmd"
                 exit 0
             }
             default {
@@ -1312,9 +1329,9 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                         Write-Host "      [FAIL] Claude sign-in didn't complete."
                         Write-Host ""
                         Write-Host "         This is the most common place setup stops. Nothing is lost."
-                        Write-Host "         When you're ready, run the SAME command again:"
+                        Write-Host "         When you're ready, run this command (works from any folder):"
                         Write-Host ""
-                        Write-Host "             .\setup-windows.ps1"
+                        Write-Host "             $ResumeCmd"
                         Write-Host ""
                         Write-Host "         It resumes right here at the Claude sign-in step - every"
                         Write-Host "         tool above is already installed and is skipped instantly."
@@ -1325,9 +1342,9 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                         Write-Host "      [FAIL] Login flow returned but you are still not signed in."
                         Write-Host ""
                         Write-Host "         This is the most common place setup stops. Nothing is lost."
-                        Write-Host "         When you're ready, run the SAME command again:"
+                        Write-Host "         When you're ready, run this command (works from any folder):"
                         Write-Host ""
-                        Write-Host "             .\setup-windows.ps1"
+                        Write-Host "             $ResumeCmd"
                         Write-Host ""
                         Write-Host "         It resumes right here at the Claude sign-in step - every"
                         Write-Host "         tool above is already installed and is skipped instantly."
@@ -1338,53 +1355,32 @@ if ($env:ELNORA_SKIP_HANDOFF -eq "1" -or $env:ELNORA_HANDOFF_MODE -eq "headless"
                     Set-Checkpoint "auth-claude"
                 }
                 "^[Ss]" {
-                    # Use the live working directory for the resume hint -- the
-                    # user picked their workspace name in install.ps1, so the
-                    # folder is no longer guaranteed to be Documents\elnora-ai-agent-hackathon-starter-kit.
-                    $kitDirDisplay = (Get-Location).Path
-                    # OrdinalIgnoreCase: Windows paths are case-insensitive
-                    # but PowerShell's String.StartsWith defaults to ordinal
-                    # (case-sensitive). If $env:USERPROFILE casing differs
-                    # from (Get-Location).Path casing — happens with mixed-
-                    # case mount points or some PSReadLine setups — the
-                    # default would silently no-op the collapse and the
-                    # user would see the literal full path.
-                    if ($kitDirDisplay.StartsWith($env:USERPROFILE, [System.StringComparison]::OrdinalIgnoreCase)) {
-                        $kitDirDisplay = '$env:USERPROFILE' + $kitDirDisplay.Substring($env:USERPROFILE.Length)
-                    }
-                    # The ASCII box is 60 chars wide; the cd line carries 8
-                    # chars of prefix ("  |     cd ") plus a 52-char field
-                    # plus the trailing "|". {0,-52} pads short strings but
-                    # does NOT truncate long ones, so a path > 52 chars
-                    # would push the right border off the row. Pre-truncate
-                    # with an ellipsis so the box stays aligned regardless
-                    # of workspace name.
-                    if ($kitDirDisplay.Length -gt 52) {
-                        $kitDirDisplay = $kitDirDisplay.Substring(0, 49) + '...'
-                    }
+                    # No fixed-width box here: $ResumeCmd embeds the absolute
+                    # kit path (workspace name is user-chosen, so its length
+                    # is unbounded) and a truncated command would be
+                    # uncopyable. Plain lines keep it copy-pasteable.
                     Write-Host ""
-                    Write-Host "  +============================================================+"
-                    Write-Host "  |                                                            |"
-                    Write-Host "  |   You skipped Claude Code login.                           |"
-                    Write-Host "  |                                                            |"
-                    Write-Host "  |   That's fine - but Phase 2 (where Claude finishes setup)  |"
-                    Write-Host "  |   needs an authenticated session, so we can't continue     |"
-                    Write-Host "  |   right now.                                               |"
-                    Write-Host "  |                                                            |"
-                    Write-Host "  |   When you're ready:                                       |"
-                    Write-Host "  |                                                            |"
-                    Write-Host ("  |     cd {0,-52}|" -f $kitDirDisplay)
-                    Write-Host "  |     .\setup-windows.ps1                                    |"
-                    Write-Host "  |                                                            |"
-                    Write-Host "  |   Re-running is safe - installs are skipped if already     |"
-                    Write-Host "  |   present, and the script picks up at the auth step.       |"
-                    Write-Host "  |                                                            |"
-                    Write-Host "  +============================================================+"
+                    Write-Host "  ============================================================"
+                    Write-Host ""
+                    Write-Host "  You skipped Claude Code login."
+                    Write-Host ""
+                    Write-Host "  That's fine - but Phase 2 (where Claude finishes setup)"
+                    Write-Host "  needs an authenticated session, so we can't continue"
+                    Write-Host "  right now."
+                    Write-Host ""
+                    Write-Host "  When you're ready, run (works from any folder):"
+                    Write-Host ""
+                    Write-Host "      $ResumeCmd"
+                    Write-Host ""
+                    Write-Host "  Re-running is safe - installs are skipped if already"
+                    Write-Host "  present, and the script picks up at the auth step."
+                    Write-Host ""
+                    Write-Host "  ============================================================"
                     Write-Host ""
                     exit 0
                 }
                 "^[Qq]" {
-                    Write-Host "      Quit. Re-run anytime:  .\setup-windows.ps1"
+                    Write-Host "      Quit. Re-run anytime:  $ResumeCmd"
                     exit 0
                 }
                 default {
@@ -1724,20 +1720,21 @@ if ($agentAvailable) {
     # Interactive handoff. Three branches by environment:
     #
     #   1. Already inside VS Code's integrated terminal ($env:TERM_PROGRAM=vscode):
-    #      the user has the IDE on screen already, so just call claude in this
-    #      shell. No window-launching dance needed.
+    #      the user has the IDE on screen already, so just call the agent in
+    #      this shell. No window-launching dance needed.
     #
     #   2. `code` CLI on PATH and the user hasn't opted out: write a one-shot
-    #      sentinel containing the handoff prompt, open VS Code at this repo,
-    #      and exit. VS Code's runOn:folderOpen task picks up the sentinel and
-    #      hands off to claude inside the integrated terminal -- so users get
-    #      the file tree, source control panel, and IDE around their session
-    #      instead of a bare PowerShell window. ELNORA_SKIP_VSCODE_HANDOFF=1 is
-    #      the user-facing escape hatch.
+    #      sentinel containing the handoff prompt (plus a sibling file naming
+    #      the chosen agent), open VS Code at this repo, and exit. VS Code's
+    #      runOn:folderOpen task picks up the sentinel and hands off to the
+    #      agent (claude or codex) inside the integrated terminal -- so users
+    #      get the file tree, source control panel, and IDE around their
+    #      session instead of a bare PowerShell window.
+    #      ELNORA_SKIP_VSCODE_HANDOFF=1 is the user-facing escape hatch.
     #
-    #   3. Fallback: claude in this shell (today's behavior). Triggered when
-    #      VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or the
-    #      `code` shim isn't on PATH yet.
+    #   3. Fallback: the agent in this shell (today's behavior). Triggered
+    #      when VS Code wasn't installed (ELNORA_SKIP_OPTIONAL_INSTALLS=1) or
+    #      the `code` shim isn't on PATH yet.
     if ($env:TERM_PROGRAM -eq "vscode") {
         # Already in VS Code, so we don't launch a window -- but still drop the
         # named workspace file and set restoreWindows so the NEXT relaunch
@@ -1750,26 +1747,27 @@ if ($agentAvailable) {
         exit $LASTEXITCODE
     }
 
-    # The VS Code sentinel handoff drives `claude` specifically (run-handoff.ps1
-    # invokes claude), so it only applies when Claude is the handoff agent. Codex
-    # falls through to the terminal call below.
     $codeAvailable = Get-Command code -ErrorAction SilentlyContinue
-    if ($agentBin -eq 'claude' -and $codeAvailable -and $env:ELNORA_SKIP_VSCODE_HANDOFF -ne "1") {
-        $vscodeDir = Join-Path $scriptDir ".vscode"
-        $sentinel  = Join-Path $vscodeDir ".handoff-pending"
-        $helper    = Join-Path $vscodeDir "run-handoff.ps1"
+    if ($codeAvailable -and $env:ELNORA_SKIP_VSCODE_HANDOFF -ne "1") {
+        $vscodeDir     = Join-Path $scriptDir ".vscode"
+        $sentinel      = Join-Path $vscodeDir ".handoff-pending"
+        $agentSentinel = Join-Path $vscodeDir ".handoff-agent"
+        $helper        = Join-Path $vscodeDir "run-handoff.ps1"
         if ((Test-Path -LiteralPath $vscodeDir) -and (Test-Path -LiteralPath $helper)) {
             # The sentinel's content IS the prompt -- single source of truth
-            # lives in $HandoffPrompt above. The helper reads, deletes, then
-            # invokes claude. BOM-less UTF-8 to keep Get-Content -Raw clean.
+            # lives in $HandoffPrompt above. The sibling agent file names the
+            # agent the helper should launch (claude or codex). The helper
+            # reads both, deletes both, then invokes the agent. BOM-less
+            # UTF-8 to keep Get-Content -Raw clean.
             [System.IO.File]::WriteAllText($sentinel, $HandoffPrompt, [System.Text.UTF8Encoding]::new($false))
+            [System.IO.File]::WriteAllText($agentSentinel, $agentBin, [System.Text.UTF8Encoding]::new($false))
 
             # Create the named workspace file + set restoreWindows BEFORE we
             # open, so we open the workspace (not the bare folder) and the
             # window sticks across relaunches.
             try { Initialize-VSCodeWorkspace } catch { }
 
-            Write-Host "Opening VS Code - Claude will continue Phase 2 setup there." -ForegroundColor White
+            Write-Host "Opening VS Code - $agentName will continue Phase 2 setup there." -ForegroundColor White
             Write-Host ""
             Write-Host "VS Code will show TWO one-time prompts before the handoff fires."
             Write-Host "Click through both:"
@@ -1779,11 +1777,10 @@ if ($agentAvailable) {
             Write-Host "      automatically. Do you want to allow automatic tasks ...?'"
             Write-Host "       -> Click 'Allow'  (VS Code remembers this globally)"
             Write-Host ""
-            Write-Host "Once both are approved, an integrated terminal opens with Claude"
-            Write-Host "already on the Phase 2 prompt. On first run, your browser will"
-            Write-Host "open to log into your Claude Pro/Max account."
+            Write-Host "Once both are approved, an integrated terminal opens with $agentName"
+            Write-Host "already on the Phase 2 prompt. $authNote"
             Write-Host ""
-            Write-Host "If you click Disallow on the second prompt, or Claude does not"
+            Write-Host "If you click Disallow on the second prompt, or $agentName does not"
             Write-Host "auto-start for any other reason, open a terminal in VS Code"
             Write-Host "(Ctrl+`` or View > Terminal) and run:"
             Write-Host "    powershell -ExecutionPolicy Bypass -File .vscode\run-handoff.ps1"
@@ -1808,6 +1805,7 @@ if ($agentAvailable) {
             }
             Write-Host "  [!] Falling back to terminal handoff." -ForegroundColor Yellow
             Remove-Item -LiteralPath $sentinel -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $agentSentinel -Force -ErrorAction SilentlyContinue
         }
     }
 
@@ -1825,7 +1823,7 @@ if ($agentAvailable) {
 Write-Host "  ! '$agentBin' command not found - $agentName install may have failed." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  See the remediation hints above. Once you've fixed it, re-run:" -ForegroundColor White
-Write-Host "      .\setup-windows.ps1"
+Write-Host "      $ResumeCmd"
 Write-Host ""
 Write-Host "  Or continue manually:" -ForegroundColor White
 Write-Host "      cd $(Get-Location)"
