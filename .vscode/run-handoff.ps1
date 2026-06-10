@@ -63,7 +63,7 @@ if (-not (Get-Command $AgentBin -ErrorAction SilentlyContinue)) {
     Write-Host "[!] '$AgentBin' command not found on PATH inside VS Code's terminal." -ForegroundColor Red
     Write-Host "    Quit VS Code fully (File -> Exit) and reopen -- the integrated" -ForegroundColor Red
     Write-Host "    terminal caches PATH at app launch. If that doesn't help," -ForegroundColor Red
-    Write-Host "    re-run setup: .\setup-windows.ps1" -ForegroundColor Red
+    Write-Host "    re-run setup: powershell -ExecutionPolicy Bypass -File `"$RepoDir\setup-windows.ps1`"" -ForegroundColor Red
     exit 127
 }
 

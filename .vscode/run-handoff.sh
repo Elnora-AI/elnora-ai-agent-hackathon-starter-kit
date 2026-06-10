@@ -57,7 +57,7 @@ if ! command -v "$AGENT_BIN" >/dev/null 2>&1; then
     echo "[!] '$AGENT_BIN' command not found on PATH inside VS Code's terminal." >&2
     echo "    Quit VS Code fully (Cmd+Q) and reopen -- the integrated" >&2
     echo "    terminal caches PATH at app launch. If that doesn't help," >&2
-    echo "    re-run setup: ./setup-mac.sh" >&2
+    echo "    re-run setup: bash \"$REPO_DIR/setup-mac.sh\"" >&2
     exit 127
 fi
 
