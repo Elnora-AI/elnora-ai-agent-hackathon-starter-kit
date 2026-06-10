@@ -145,18 +145,6 @@ If 'brew: command not found', brew itself isn't on PATH - fix that first
 (see the Homebrew remediation above) and re-run this script.
 EOF
             ;;
-        Git*)
-            cat <<'EOF'
-Try manually:
-  brew install git
-Verify:
-  git --version
-  which git            # should be /opt/homebrew/bin/git or /usr/local/bin/git
-macOS ships a system git at /usr/bin/git that may be older. If brew's git
-isn't being used, your PATH has /usr/bin before Homebrew - fix the order
-in ~/.zprofile (the brew shellenv line should come AFTER any PATH exports).
-EOF
-            ;;
         "Git config"*)
             cat <<'EOF'
 Set the values manually:
@@ -219,6 +207,20 @@ Verify:
   gh --version
 Then authenticate:
   gh auth login       # choose GitHub.com, HTTPS, then browser login
+EOF
+            ;;
+        # Keep this AFTER "Git config"* and "GitHub CLI"* - both also start
+        # with "Git", so this catch-all would shadow them (SC2221/SC2222).
+        Git*)
+            cat <<'EOF'
+Try manually:
+  brew install git
+Verify:
+  git --version
+  which git            # should be /opt/homebrew/bin/git or /usr/local/bin/git
+macOS ships a system git at /usr/bin/git that may be older. If brew's git
+isn't being used, your PATH has /usr/bin before Homebrew - fix the order
+in ~/.zprofile (the brew shellenv line should come AFTER any PATH exports).
 EOF
             ;;
         Obsidian*)
