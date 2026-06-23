@@ -74,7 +74,7 @@ jobs:
       # runner-set, so they're regex-safe (no injection surface).
       ELNORA_WORKSPACE_NAME: bootstrap-e2e-${{ github.run_id }}-${{ github.run_attempt }}-macos
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify required secrets are present
         run: |
@@ -256,7 +256,7 @@ jobs:
       # safe to interpolate here (no command-injection surface).
       ELNORA_WORKSPACE_NAME: bootstrap-e2e-${{ github.run_id }}-${{ github.run_attempt }}-windows
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify required secrets are present
         shell: pwsh

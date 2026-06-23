@@ -45,7 +45,7 @@ jobs:
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
       ELNORA_WORKSPACE_NAME: agent-sel-${{ github.run_id }}-${{ github.run_attempt }}-mac-${{ matrix.agent }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Pre-set git config (skip prompts)
         run: |
@@ -105,7 +105,7 @@ jobs:
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
       ELNORA_WORKSPACE_NAME: agent-sel-${{ github.run_id }}-${{ github.run_attempt }}-win-${{ matrix.agent }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Pre-set git config (skip prompts)
         shell: pwsh

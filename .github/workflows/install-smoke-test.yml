@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Reject non-ASCII outside # comments
         run: python3 .github/scripts/lint-ascii.py
 
@@ -89,7 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Bash registry tests
         run: bash tests/registry/registry_test.sh
       - name: PowerShell registry tests
@@ -104,7 +104,7 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Pre-set git config (skip Read prompt)
         run: |
@@ -148,7 +148,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Pre-set git config (skip Read prompt)
         shell: pwsh
