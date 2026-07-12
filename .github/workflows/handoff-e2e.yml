@@ -93,7 +93,7 @@ jobs:
       # (and as bootstrap-e2e.yml). Saves ~14s/run on the cask installs.
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify required secrets are present
         run: |
@@ -382,7 +382,7 @@ jobs:
       # Same rationale as install-smoke-test.yml — windows-2022 has no winget.
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify required secrets are present
         shell: pwsh
