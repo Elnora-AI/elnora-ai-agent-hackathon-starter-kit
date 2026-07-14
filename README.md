@@ -168,7 +168,7 @@ The kit comes pre-connected so these work on first launch:
 ├── .env.template                          # API-key placeholders — copy to .env, never edit in place
 ├── .mcp.json                              # MCP servers (Chrome DevTools, Context7, grep, Estonian)
 ├── .gitignore
-├── LICENSE                                # MIT
+├── LICENSE                                # Apache-2.0
 ├── .claude/
 │   ├── settings.json                      # Plugins, permissions, env defaults
 │   └── knowledge-base.local.md.template   # Per-user knowledge-base config
@@ -226,4 +226,4 @@ Set values to `false` or `"0"` to disable.
 
 ## License
 
-MIT.
+Apache-2.0.
