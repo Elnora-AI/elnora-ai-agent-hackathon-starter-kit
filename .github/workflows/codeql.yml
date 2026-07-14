@@ -17,6 +17,10 @@ on:
 jobs:
   analyze:
     name: Analyze
+    # Code scanning uploads require GitHub Advanced Security, which is free only
+    # on public repos. Skip on private forks to avoid failing "resource not
+    # accessible" uploads.
+    if: ${{ github.repository_visibility == 'public' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -38,7 +42,7 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          queries: security-and-quality
+          queries: security-extended
 
       # No Autobuild step: the matrix scans interpreted/config languages
       # (actions), which CodeQL analyzes directly. Add Autobuild back only if

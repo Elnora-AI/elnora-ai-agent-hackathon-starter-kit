@@ -1,0 +1,6 @@
+# gitleaks config for elnora-ai-agent-hackathon-starter-kit.
+# Extend the built-in ruleset. A full-history scan is clean, so no path
+# allow-list is required; this file exists so the workflow's `--config` flag
+# resolves and future allow-lists have a home.
+[extend]
+useDefault = true

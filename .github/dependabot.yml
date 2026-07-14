@@ -29,15 +29,15 @@ updates:
   #     - "dependencies"
   #     - "javascript"
 
-  # Python (requirements.txt / pyproject.toml / pipfile)
-  # - package-ecosystem: "pip"
-  #   directory: "/"
-  #   schedule:
-  #     interval: "weekly"
-  #   open-pull-requests-limit: 10
-  #   labels:
-  #     - "dependencies"
-  #     - "python"
+  # Python — Vertex AI generative examples (examples/vertex/requirements.txt)
+  - package-ecosystem: "pip"
+    directory: "/examples/vertex"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
 
   # Docker
   # - package-ecosystem: "docker"
