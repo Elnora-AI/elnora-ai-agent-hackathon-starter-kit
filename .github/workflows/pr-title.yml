@@ -1,0 +1,42 @@
+# WARNING: this workflow uses `pull_request_target`, which runs in the context
+# of the BASE repo with access to secrets, even when triggered by a fork PR.
+# It currently only reads the PR title (a sanitized string) and does not check
+# out the PR head, so it is safe as written.
+#
+# Do NOT add `actions/checkout` here without pinning `ref` to the BASE sha,
+# and do NOT execute any code from the PR head — that would expose repository
+# secrets to fork authors. If you need to run code from the PR, use a
+# `pull_request` trigger in a separate workflow file instead.
+
+name: PR Title Lint
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Conventional Commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            ci
+            refactor
+            perf
+            test
+            revert
+            build
+          requireScope: false
+          subjectPattern: ^.+$
+          subjectPatternError: "PR title must not be empty after the type prefix."
