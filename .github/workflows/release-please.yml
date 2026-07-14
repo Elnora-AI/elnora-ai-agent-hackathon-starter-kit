@@ -1,0 +1,30 @@
+name: Release Please
+
+# Maintains a rolling "release PR" from Conventional Commits on main. Merging that PR
+# bumps the version (VERSION file), updates CHANGELOG.md, tags, and publishes a GitHub
+# Release. This is a starter-template repo with nothing to publish, so the GitHub
+# Release is the end of the line; there is no downstream publish workflow.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # Org PAT so the release PR triggers CI (the built-in GITHUB_TOKEN would not).
+          token: ${{ secrets.RELEASE_BOT_PAT }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
