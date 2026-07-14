@@ -2,4 +2,4 @@
 # Install: python3 -m pip install -r examples/vertex/requirements.txt
 # Note: the voiceover example (generate_voiceover_tts.py) needs NONE of this —
 # it uses only the Python standard library + the gcloud CLI.
-google-genai>=1.0.0
+google-genai>=2.11.0
