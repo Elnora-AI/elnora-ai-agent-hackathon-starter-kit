@@ -1,0 +1,7 @@
+ci: centralize releases via release-dispatch
+
+Add the release-dispatch workflow and remove the redundant in-repo
+release-please; releases now come from the centralized flow.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WUhYjxo3aEXF4RZE1oRmtL
