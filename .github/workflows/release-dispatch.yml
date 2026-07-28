@@ -1,0 +1,27 @@
+# On push to main, trigger the org's centralized release automation for this
+# repo, so a release is cut automatically when a release PR is merged.
+name: Release dispatch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger centralized release automation
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+        run: |
+          jq -n --arg repo "${GITHUB_REPOSITORY#*/}" '{ref:"main",inputs:{repos:$repo}}' \
+            | gh api --method POST \
+                /repos/Elnora-AI/elnora-automation/actions/workflows/release-please.yml/dispatches \
+                --input -
