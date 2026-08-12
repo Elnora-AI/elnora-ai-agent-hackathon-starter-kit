@@ -388,6 +388,29 @@ if [ -d "$TARGET_DIR" ]; then
         exit 0
     fi
     echo "Existing starter kit detected at $TARGET_DIR"
+    # Data-loss guard: never wipe without explicit consent. Default is No.
+    # CI/scripted runs that intentionally pre-populate the folder opt in
+    # with ELNORA_CONFIRM_WIPE=1 (see bootstrap-e2e.yml).
+    confirm_wipe=""
+    if [ "${ELNORA_CONFIRM_WIPE:-0}" = "1" ]; then
+        confirm_wipe="y"
+    elif [ -c /dev/tty ] && (exec 3</dev/tty) 2>/dev/null; then
+        printf "Wipe %s and re-install? This deletes everything inside it. [y/N] " "$TARGET_DIR" > /dev/tty
+        IFS= read -r confirm_wipe < /dev/tty || confirm_wipe=""
+    else
+        echo "[!] $TARGET_DIR already exists, and there is no terminal to confirm the wipe." >&2
+        echo "    Nothing was deleted. Re-run in a terminal, or set ELNORA_CONFIRM_WIPE=1" >&2
+        echo "    to allow wiping in scripted runs." >&2
+        exit 1
+    fi
+    case "$confirm_wipe" in
+        y|Y) ;;
+        *)
+            echo "Aborted - nothing was deleted." >&2
+            echo "    Re-run the installer and pick a different name, or re-run and answer y to wipe." >&2
+            exit 1
+            ;;
+    esac
     # Preserve user-data files across the wipe. Stash them in a temp dir
     # keyed off TARGET_DIR, then restore after re-extract. The temp dir
     # gets cleaned up on EXIT regardless of success/failure.
