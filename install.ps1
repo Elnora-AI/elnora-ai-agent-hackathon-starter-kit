@@ -380,6 +380,25 @@ if (Test-Path $TargetDir) {
     }
     Write-Host "Existing starter kit detected at $TargetDir" -ForegroundColor Gray
 
+    # Data-loss guard: never wipe without explicit consent. Default is No.
+    # CI/scripted runs that intentionally pre-populate the folder opt in
+    # with $env:ELNORA_CONFIRM_WIPE -eq '1' (see bootstrap-e2e.yml).
+    $confirmWipe = $env:ELNORA_CONFIRM_WIPE -eq '1'
+    if (-not $confirmWipe) {
+        if ([Console]::IsInputRedirected) {
+            Write-Host "[!] $TargetDir already exists, and there is no interactive console to confirm the wipe." -ForegroundColor Yellow
+            Write-Host "    Nothing was deleted. Re-run in a terminal, or set ELNORA_CONFIRM_WIPE=1" -ForegroundColor Yellow
+            Write-Host "    to allow wiping in scripted runs." -ForegroundColor Yellow
+            exit 1
+        }
+        $confirmWipe = (Read-Host "Wipe $TargetDir and re-install? This deletes everything inside it. [y/N]") -match '^[yY]$'
+    }
+    if (-not $confirmWipe) {
+        Write-Host "Aborted - nothing was deleted." -ForegroundColor Yellow
+        Write-Host "    Re-run the installer and pick a different name, or re-run and answer y to wipe." -ForegroundColor Yellow
+        exit 1
+    }
+
     # Preserve user-data files across the wipe. Stash them in a temp dir,
     # then restore after re-extract. Cleaned up in the finally block.
     $stash = Join-Path $env:TEMP ("elnora-preserve-" + [Guid]::NewGuid().ToString('N'))
