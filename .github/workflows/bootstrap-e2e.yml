@@ -55,6 +55,12 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ELNORA_HANDOFF_MODE: headless
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}/handoff-transcript.jsonl
+      # The strategy note above pre-populates the install target dir, so
+      # install.sh takes its "already exists" branch. Since #32 that branch
+      # refuses to wipe without consent and aborts when there is no tty --
+      # which is every CI runner. Opt in explicitly; a real user still gets
+      # the [y/N] prompt.
+      ELNORA_CONFIRM_WIPE: "1"
       # Same rationale as handoff-e2e.yml's macOS job and the Windows job
       # below — macos-14 ships without VS Code/Obsidian, so the brew casks
       # install on every run for nothing. Saves ~14s/run.
@@ -244,6 +250,9 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ELNORA_HANDOFF_MODE: headless
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}\handoff-transcript.jsonl
+      # See the macOS job: install.ps1's "already exists" branch needs
+      # explicit consent since #32, and IsInputRedirected is true here.
+      ELNORA_CONFIRM_WIPE: "1"
       # windows-2022 runners ship without winget; skip optional installs that
       # need it. Same rationale as install-smoke-test.yml + handoff-e2e.yml.
       ELNORA_SKIP_OPTIONAL_INSTALLS: "1"
