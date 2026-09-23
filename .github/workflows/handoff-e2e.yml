@@ -4,12 +4,12 @@ name: handoff-e2e
 # script, lets it `claude -p` into INSTALL_FOR_AGENTS.md (headless mode),
 # and asserts on disk that Claude actually completed Phase 2.
 #
-# Manual-only (workflow_dispatch). Uses a real ANTHROPIC_API_KEY — costs
+# Manual-only (workflow_dispatch). Uses the real OPENROUTER_API_KEY — costs
 # LLM tokens per run.
 #
 # Required GitHub repository secrets:
-#   ANTHROPIC_API_KEY   - sk-ant-* key. Set a low monthly budget cap on it
-#                         in the Anthropic console so a runaway test can't
+#   OPENROUTER_API_KEY  - sk-or-* key (org secret). Set a low credit limit on it
+#                         in the OpenRouter console so a runaway test can't
 #                         spike the bill. Used when agent=claude (default).
 #   OPENAI_API_KEY      - sk-* key. Used when agent=codex: setup installs
 #                         Codex and runs `codex exec` for Phase 2 instead of
@@ -66,7 +66,14 @@ jobs:
     env:
       # Only the key for the selected agent is exposed to the job — a
       # claude run never sees the OpenAI key and vice versa.
-      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
+      # Claude Code runs through OpenRouter with automatic model routing. The
+      # setup scripts skip browser OAuth when ANTHROPIC_API_KEY is set, so that
+      # name carries the OpenRouter key too; there is no Anthropic key.
+      ANTHROPIC_BASE_URL: https://openrouter.ai/api
+      ANTHROPIC_AUTH_TOKEN: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.OPENROUTER_API_KEY || '' }}
+      ANTHROPIC_MODEL: openrouter/auto
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: openrouter/auto
+      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.OPENROUTER_API_KEY || '' }}
       OPENAI_API_KEY: ${{ github.event.inputs.agent == 'codex' && secrets.OPENAI_API_KEY || '' }}
       # claude | codex — setup-mac.sh installs this agent and routes the
       # Phase 2 handoff to it (ELNORA_HANDOFF_AGENT defaults to ELNORA_AGENT).
@@ -108,13 +115,13 @@ jobs:
             esac
           else
             if [ -z "$ANTHROPIC_API_KEY" ]; then
-              echo "::error::ANTHROPIC_API_KEY secret is not set"
+              echo "::error::OPENROUTER_API_KEY secret is not set"
               exit 1
             fi
             # Quick sanity check on the secret shapes — catches a swapped paste.
             case "$ANTHROPIC_API_KEY" in
-              sk-ant-*) echo "ANTHROPIC_API_KEY shape OK" ;;
-              *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;;
+              sk-or-*) echo "OPENROUTER_API_KEY shape OK" ;;
+              *) echo "::error::OPENROUTER_API_KEY does not start with sk-or-"; exit 1 ;;
             esac
           fi
           if [ -z "$ELNORA_HANDOFF_GH_TOKEN" ]; then
@@ -277,6 +284,7 @@ jobs:
           s = p.read_text()
           before = len(s)
           s = re.sub(r'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***',     s)
+          s = re.sub(r'sk-or-[A-Za-z0-9_\-]+',           'sk-or-***REDACTED***',      s)
           s = re.sub(r'sk-(?:proj|svcacct)-[A-Za-z0-9_\-]+', 'sk-***REDACTED***',      s)
           s = re.sub(r'sk-[A-Za-z0-9_\-]{30,}',           'sk-***REDACTED***',         s)
           s = re.sub(r'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***',         s)
@@ -369,7 +377,14 @@ jobs:
     timeout-minutes: 25
     env:
       # See macOS job — only the selected agent's key is exposed.
-      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.ANTHROPIC_API_KEY || '' }}
+      # Claude Code runs through OpenRouter with automatic model routing. The
+      # setup scripts skip browser OAuth when ANTHROPIC_API_KEY is set, so that
+      # name carries the OpenRouter key too; there is no Anthropic key.
+      ANTHROPIC_BASE_URL: https://openrouter.ai/api
+      ANTHROPIC_AUTH_TOKEN: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.OPENROUTER_API_KEY || '' }}
+      ANTHROPIC_MODEL: openrouter/auto
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: openrouter/auto
+      ANTHROPIC_API_KEY: ${{ (github.event.inputs.agent || 'claude') == 'claude' && secrets.OPENROUTER_API_KEY || '' }}
       OPENAI_API_KEY: ${{ github.event.inputs.agent == 'codex' && secrets.OPENAI_API_KEY || '' }}
       ELNORA_AGENT: ${{ github.event.inputs.agent || 'claude' }}
       ELNORA_HANDOFF_MODE: headless
@@ -398,11 +413,11 @@ jobs:
             }
           } else {
             if (-not $env:ANTHROPIC_API_KEY) {
-              Write-Host "::error::ANTHROPIC_API_KEY secret is not set"
+              Write-Host "::error::OPENROUTER_API_KEY secret is not set"
               exit 1
             }
-            if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*") {
-              Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"
+            if ($env:ANTHROPIC_API_KEY -notlike "sk-or-*") {
+              Write-Host "::error::OPENROUTER_API_KEY does not start with sk-or-"
               exit 1
             }
           }
@@ -564,6 +579,7 @@ jobs:
           $s = Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Raw
           $before = $s.Length
           $s = [regex]::Replace($s, 'sk-ant-[A-Za-z0-9_\-]+',          'sk-ant-***REDACTED***')
+          $s = [regex]::Replace($s, 'sk-or-[A-Za-z0-9_\-]+',           'sk-or-***REDACTED***')
           $s = [regex]::Replace($s, 'sk-(?:proj|svcacct)-[A-Za-z0-9_\-]+', 'sk-***REDACTED***')
           $s = [regex]::Replace($s, 'sk-[A-Za-z0-9_\-]{30,}',           'sk-***REDACTED***')
           $s = [regex]::Replace($s, 'gh[pousr]_[A-Za-z0-9_]{20,}',      'ghX_***REDACTED***')

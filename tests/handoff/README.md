@@ -33,7 +33,7 @@ You need an API key. Paste it into GitHub repo secrets:
 
 | Secret name | Where to get it | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys | Set a low monthly budget cap on the key in the Anthropic console so a runaway test can't spike the bill (measured at ~$0.45-0.55 per OS on current Sonnet pricing — but cap the key anyway). |
+| `OPENROUTER_API_KEY` | Org secret (Elnora-AI → Settings → Secrets); keys at https://openrouter.ai/keys | Claude Code reaches OpenRouter through `ANTHROPIC_BASE_URL` with `openrouter/auto`; the workflow sets that up. Keep a low credit limit on the key so a runaway test can't spike the bill. |
 
 **For local testing** (running the headless mode on your own Mac), paste
 the same values into `.env` at the repo root — that file is gitignored.

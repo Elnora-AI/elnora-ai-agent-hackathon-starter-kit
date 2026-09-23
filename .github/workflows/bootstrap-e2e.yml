@@ -52,7 +52,14 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 25
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Claude Code runs through OpenRouter with automatic model routing. The
+      # setup scripts skip browser OAuth when ANTHROPIC_API_KEY is set, so that
+      # name carries the OpenRouter key too; there is no Anthropic key.
+      ANTHROPIC_BASE_URL: https://openrouter.ai/api
+      ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
+      ANTHROPIC_MODEL: openrouter/auto
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: openrouter/auto
+      ANTHROPIC_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       ELNORA_HANDOFF_MODE: headless
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}/handoff-transcript.jsonl
       # The strategy note above pre-populates the install target dir, so
@@ -84,8 +91,8 @@ jobs:
 
       - name: Verify required secrets are present
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::error::ANTHROPIC_API_KEY secret is not set"; exit 1; fi
-          case "$ANTHROPIC_API_KEY" in sk-ant-*) ;; *) echo "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 ;; esac
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::error::OPENROUTER_API_KEY secret is not set"; exit 1; fi
+          case "$ANTHROPIC_API_KEY" in sk-or-*) ;; *) echo "::error::OPENROUTER_API_KEY does not start with sk-or-"; exit 1 ;; esac
 
       - name: Pre-set git config (skip Read prompts)
         run: |
@@ -172,6 +179,7 @@ jobs:
           p = pathlib.Path(sys.argv[1])
           s = p.read_text()
           s = re.sub(r'sk-ant-[A-Za-z0-9_\-]+',       'sk-ant-***REDACTED***',      s)
+          s = re.sub(r'sk-or-[A-Za-z0-9_\-]+',        'sk-or-***REDACTED***',       s)
           s = re.sub(r'gh[pousr]_[A-Za-z0-9_]{20,}',   'ghX_***REDACTED***',         s)
           s = re.sub(r'github_pat_[A-Za-z0-9_]{20,}',  'github_pat_***REDACTED***',  s)
           p.write_text(s)
@@ -247,7 +255,14 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 25
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Claude Code runs through OpenRouter with automatic model routing. The
+      # setup scripts skip browser OAuth when ANTHROPIC_API_KEY is set, so that
+      # name carries the OpenRouter key too; there is no Anthropic key.
+      ANTHROPIC_BASE_URL: https://openrouter.ai/api
+      ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
+      ANTHROPIC_MODEL: openrouter/auto
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: openrouter/auto
+      ANTHROPIC_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       ELNORA_HANDOFF_MODE: headless
       ELNORA_HANDOFF_TRANSCRIPT: ${{ github.workspace }}\handoff-transcript.jsonl
       # See the macOS job: install.ps1's "already exists" branch needs
@@ -270,8 +285,8 @@ jobs:
       - name: Verify required secrets are present
         shell: pwsh
         run: |
-          if (-not $env:ANTHROPIC_API_KEY) { Write-Host "::error::ANTHROPIC_API_KEY secret is not set"; exit 1 }
-          if ($env:ANTHROPIC_API_KEY -notlike "sk-ant-*")    { Write-Host "::error::ANTHROPIC_API_KEY does not start with sk-ant-"; exit 1 }
+          if (-not $env:ANTHROPIC_API_KEY) { Write-Host "::error::OPENROUTER_API_KEY secret is not set"; exit 1 }
+          if ($env:ANTHROPIC_API_KEY -notlike "sk-or-*")    { Write-Host "::error::OPENROUTER_API_KEY does not start with sk-or-"; exit 1 }
 
       - name: Pre-set git config (skip Read prompts)
         shell: pwsh
@@ -349,6 +364,7 @@ jobs:
           if (-not (Test-Path $env:ELNORA_HANDOFF_TRANSCRIPT)) { Write-Host "(no transcript)"; exit 0 }
           $s = Get-Content $env:ELNORA_HANDOFF_TRANSCRIPT -Raw
           $s = [regex]::Replace($s, 'sk-ant-[A-Za-z0-9_\-]+',       'sk-ant-***REDACTED***')
+          $s = [regex]::Replace($s, 'sk-or-[A-Za-z0-9_\-]+',        'sk-or-***REDACTED***')
           $s = [regex]::Replace($s, 'gh[pousr]_[A-Za-z0-9_]{20,}',   'ghX_***REDACTED***')
           $s = [regex]::Replace($s, 'github_pat_[A-Za-z0-9_]{20,}',  'github_pat_***REDACTED***')
           Set-Content -Path $env:ELNORA_HANDOFF_TRANSCRIPT -Value $s -NoNewline
