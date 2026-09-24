@@ -230,7 +230,7 @@ Apache-2.0.
 
 ## Part of the Elnora family
 
-Open-source agent tooling from [Elnora AI](https://github.com/Elnora-AI) — free, universal, config-driven tools that wire Claude Code (or any AI coding agent) into the systems you run your company on. Each works 100% standalone; install several and they chain into end-to-end workflows. Take them all and you have the same system Elnora runs on internally.
+Open-source agent tooling from [Elnora AI](https://github.com/Elnora-AI) — free, universal, config-driven tools that wire Claude Code (or any AI coding agent) into the systems you run your company on. Each works 100% standalone; install several and they chain into end-to-end workflows. Take them all and you have the same system Elnora AI runs on internally.
 
 <!-- ELNORA-FAMILY:START -->
 - [elnora-starter-kit](https://github.com/Elnora-AI/elnora-starter-kit) — one-line Claude Code + Elnora install for biologists and non-technical founders; doubles as a starter template for any new Claude Code project
